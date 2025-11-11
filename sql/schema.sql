@@ -1,0 +1,555 @@
+-- SkyPulse Monitoring System - Convention-Compliant Schema (Single File)
+
+CREATE DATABASE skypulse_monitoring_system;
+\c skypulse_monitoring_system;
+
+-- EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; --UUID generation
+CREATE EXTENSION IF NOT EXISTS pgcrypto;    -- passwords, tokens encryption
+
+-- GENERIC UUID TRIGGER (auto-fills NEW.uuid if NULL)
+CREATE OR REPLACE FUNCTION ensure_uuid()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.uuid IS NULL THEN
+    NEW.uuid := uuid_generate_v4();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Helper to attach the trigger:
+--   CREATE TRIGGER trg_<table>_uuid
+--   BEFORE INSERT ON <table>
+--   FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+-- Generic "updated timestamp" trigger for date_modified
+-- Attach only to MAJOR tables we agreed on.
+CREATE OR REPLACE FUNCTION touch_date_modified()
+RETURNS trigger AS $$
+BEGIN
+  NEW.date_modified := NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 1) USERS, ROLES, PERMISSIONS
+
+CREATE TABLE roles (
+    role_id             SERIAL PRIMARY KEY,
+    role_name           VARCHAR(20) UNIQUE NOT NULL,
+    role_description    TEXT,
+    date_created        TIMESTAMP DEFAULT NOW(),
+    date_modified       TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TRIGGER trg_roles_touch_modified
+BEFORE UPDATE ON roles
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+CREATE TABLE permissions (
+    permission_id              BIGSERIAL PRIMARY KEY,
+    permission_code            VARCHAR(20) UNIQUE NOT NULL,  -- e.g. view_dashboard
+    permission_description     TEXT,
+    date_created               TIMESTAMP DEFAULT NOW(),
+    date_modified              TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TRIGGER trg_permissions_touch_modified
+BEFORE UPDATE ON permissions
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+-- Pure join: no UUID needed
+CREATE TABLE role_permissions (
+    role_permission_id         BIGSERIAL PRIMARY KEY,
+    role_id                    BIGINT NOT NULL,
+    permission_id              BIGINT NOT NULL,
+    can_view                   BOOLEAN DEFAULT FALSE,
+    can_create                 BOOLEAN DEFAULT FALSE,
+    can_update                 BOOLEAN DEFAULT FALSE,
+    can_delete                 BOOLEAN DEFAULT FALSE,
+    date_created               TIMESTAMP DEFAULT NOW(),
+    date_modified              TIMESTAMP DEFAULT NOW(),
+    UNIQUE (role_id, permission_id),
+    CONSTRAINT fk_roles_role_permissions_role_id
+      FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
+    CONSTRAINT fk_permissions_role_permissions_permission_id
+      FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE CASCADE
+);
+
+CREATE INDEX index_role_permissions_role_id ON role_permissions(role_id);
+
+CREATE TABLE users (
+    user_id        BIGSERIAL PRIMARY KEY,
+    uuid           UUID UNIQUE,  -- exposed in URLs/APIs
+    first_name     VARCHAR(20),
+    last_name      VARCHAR(20),
+    user_email     VARCHAR(50) UNIQUE NOT NULL,
+    password_hash  TEXT NOT NULL CHECK (char_length(password_hash) >= 20),
+    role_id        BIGINT,
+    last_login_at  TIMESTAMP,   -- updated on successful login
+    last_seen_at   TIMESTAMP,    -- updated on every API hit or dashboard view
+    last_ip        VARCHAR(64),
+    status         BOOLEAN DEFAULT TRUE,
+    date_created   TIMESTAMP DEFAULT NOW(),
+    date_modified  TIMESTAMP DEFAULT NOW(),
+    is_deleted      BOOLEAN DEFAULT FALSE,
+    deleted_at      TIMESTAMP
+    CONSTRAINT fk_roles_users_role_id
+      FOREIGN KEY (role_id) REFERENCES roles(role_id)
+);
+
+ -- will autopopulate missing UUIDs.
+CREATE TRIGGER trg_users_uuid
+BEFORE INSERT ON users
+FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+CREATE TRIGGER trg_users_touch_modified
+BEFORE UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+CREATE TABLE user_preferences (
+    user_preference_id      SERIAL PRIMARY KEY,
+    user_id                 BIGINT UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+    theme                   VARCHAR(20) DEFAULT 'light', -- 'dark', 'light', 'system';
+    alert_channel           VARCHAR(30) DEFAULT 'email', -- 'email', 'telegram', 'sms'
+    receive_weekly_reports  BOOLEAN DEFAULT TRUE,
+    language                VARCHAR(10) DEFAULT 'en',
+    timezone                VARCHAR(100) DEFAULT 'UTC',
+    dashboard_layout        JSONB DEFAULT '{}'::jsonb,
+    date_created            TIMESTAMP DEFAULT NOW(),
+    date_modified           TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE user_contacts (
+    user_contacts_id SERIAL PRIMARY KEY,
+    user_id          BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
+    type             VARCHAR(20) CHECK ( type IN ('email', 'phone', 'sms', 'telegram', 'slack', 'teams')),
+    value            VARCHAR(150) NOT NULL,
+    verified         BOOLEAN DEFAULT FALSE,
+    is_primary       BOOLEAN DEFAULT FALSE,
+    date_created     TIMESTAMP DEFAULT NOW(),
+    date_modified    TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX index_user_contacts_user_id ON user_contacts(user_id);
+
+CREATE TABLE user_audit_session (
+    user_audit_session_id BIGSERIAL PRIMARY KEY,
+    user_id               BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
+    ip_address            VARCHAR(64),
+    user_agent            TEXT,
+    login_time            TIMESTAMP DEFAULT NOW(),
+    logout_time           TIMESTAMP,
+    session_token         VARCHAR(255),
+    device_name           VARCHAR(100),
+    nearest_location      VARCHAR(50),
+    session_status        VARCHAR(20) DEFAULT 'active'  -- active, expired, revoked
+    ,
+    date_created          TIMESTAMP DEFAULT NOW(),
+    date_modified         TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX index_user_audit_session_user_id ON user_audit_session(user_id);
+CREATE INDEX index_audit_session_login_time ON user_audit_session(login_time);
+
+
+CREATE TABLE login_attempts (
+    login_attempt_id BIGSERIAL PRIMARY KEY,
+    user_id          BIGINT REFERENCES users(user_id) ON DELETE SET NULL,
+    user_email       VARCHAR(100),
+    ip_address       VARCHAR(64),
+    user_agent       TEXT,
+    status           VARCHAR(10) CHECK (status IN ('SUCCESS', 'FAILURE')),
+    reason           TEXT,
+    attempted_at     TIMESTAMP DEFAULT NOW(),
+    date_created     TIMESTAMP DEFAULT NOW(),
+    date_modified    TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_login_attempts_user_email ON login_attempts(user_email);
+CREATE INDEX idx_login_attempts_status ON login_attempts(status);
+CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip_address, attempted_at DESC);
+
+
+
+-- Optional per-user permissions to override role-permissions
+CREATE TABLE user_permissions (
+  user_permission_id     BIGSERIAL PRIMARY KEY,
+  user_id                BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
+  permission_id          BIGINT REFERENCES permissions(permission_id) ON DELETE CASCADE,
+  can_view               BOOLEAN,
+  can_create             BOOLEAN,
+  can_update             BOOLEAN,
+  can_delete             BOOLEAN,
+  date_created           TIMESTAMP DEFAULT NOW(),
+  date_modified          TIMESTAMP DEFAULT NOW()
+);
+
+-- 2) CONTACT GROUPS & NOTIFICATIONS
+
+CREATE TABLE contact_groups (
+    contact_group_id            SERIAL PRIMARY KEY,
+    uuid                        UUID UNIQUE,
+    contact_group_name          VARCHAR(25) NOT NULL, -- eg 'support team', 'backend team'
+    contact_group_description   TEXT,
+    created_by                  BIGINT REFERENCES users(user_id),
+    date_created                TIMESTAMP DEFAULT NOW(),
+    date_modified               TIMESTAMP DEFAULT NOW(),
+    is_deleted      BOOLEAN DEFAULT FALSE,
+    deleted_at      TIMESTAMP
+);
+
+CREATE TRIGGER trg_contact_groups_uuid
+BEFORE INSERT ON contact_groups
+FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+CREATE TRIGGER trg_contact_groups_touch_modified
+BEFORE UPDATE ON contact_groups
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+-- Link registered users to groups
+CREATE TABLE contact_group_members (
+  contact_group_member_id    SERIAL PRIMARY KEY,
+  contact_group_id           BIGINT REFERENCES contact_groups(contact_group_id) ON DELETE CASCADE,
+  user_id                    BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  is_primary                 BOOLEAN DEFAULT FALSE,
+  added_at                   TIMESTAMP DEFAULT NOW(),
+  date_created               TIMESTAMP DEFAULT NOW(),
+  date_modified              TIMESTAMP DEFAULT NOW(),
+  UNIQUE (contact_group_id, user_id)
+);
+
+CREATE INDEX index_contact_group_members_group_id ON contact_group_members(contact_group_id);
+
+-- Global channels (Email, Telegram, sms, Teams)
+CREATE TABLE notification_channels (
+  notification_channel_id          BIGSERIAL PRIMARY KEY,
+  notification_channel_code        VARCHAR(50) UNIQUE NOT NULL, -- EMAIL | TELEGRAM | SMS
+  notification_channel_name        VARCHAR(50),
+  is_enabled                       BOOLEAN DEFAULT TRUE,
+  date_created                     TIMESTAMP DEFAULT NOW(),
+  date_modified                    TIMESTAMP DEFAULT NOW()
+);
+
+-- Which channel each user uses, priorities, overrides global channels
+CREATE TABLE contact_group_member_channels (
+    contact_group_member_channel_id SERIAL PRIMARY KEY,
+    contact_group_member_id         BIGINT NOT NULL REFERENCES contact_group_members(contact_group_member_id) ON DELETE CASCADE,
+    notification_channel_id         BIGINT NOT NULL REFERENCES notification_channels(notification_channel_id) ON DELETE CASCADE,
+    is_enabled                      BOOLEAN DEFAULT TRUE,
+    priority                        SMALLINT DEFAULT 1,           -- 1 = primary, 2 = fallback
+    destination_override            VARCHAR(255),                -- custom email/handle/number
+    date_created                    TIMESTAMP DEFAULT NOW(),
+    date_modified                   TIMESTAMP DEFAULT NOW(),
+    UNIQUE (contact_group_member_id, notification_channel_id)
+);
+
+-- Customizable message templates
+CREATE TABLE notification_templates (
+    notification_template_id    SERIAL PRIMARY KEY,
+    uuid             UUID UNIQUE,
+    event_type       VARCHAR(50), -- service_down, ssl_expiry...
+    storage_mode VARCHAR(20) DEFAULT 'hybrid' CHECK ( storage_mode IN ('database', 'filesystem', 'hybrid')),
+      -- Template content (if using database or override)
+    subject_template TEXT NOT NULL,
+    body_template TEXT NOT NULL,   -- Email/SMS body (HTML or plain text)
+    pdf_template TEXT,                           -- Optional: for PDF layouts
+    include_pdf BOOLEAN DEFAULT FALSE,           -- If true, generate PDF attachment
+      -- Filesystem keys (used when storage_mode='filesystem' or hybrid fallback)
+    body_template_key   VARCHAR(200),       -- e.g. 'emails/service_down_v1.html'
+    pdf_template_key    VARCHAR(200),       -- e.g. 'pdf/service_down_v1.html'
+        -- Template metadata
+    template_syntax VARCHAR(20) DEFAULT 'mustache', -- Defines placeholder format  'mustache', 'positional', 'html'
+    sample_data JSONB DEFAULT '{}'::jsonb,       -- Example JSON data for preview
+    created_by       BIGINT REFERENCES users(user_id),
+    date_created     TIMESTAMP DEFAULT NOW(),
+    date_modified    TIMESTAMP DEFAULT NOW(),
+);
+
+--- Emails/PDFs → need HTML & dynamic data ({{ }} placeholders)
+--- SMS → use short static text with positional replacements (%1, %2)
+--- System logs → simple plain text without rendering at all (html or raw)
+
+CREATE TRIGGER trg_notification_templates_uuid
+BEFORE INSERT ON notification_templates
+FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+CREATE TRIGGER trg_notification_templates_touch_modified
+BEFORE UPDATE ON notification_templates
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+-- Log of each send attempt
+CREATE TABLE notification_history (
+    notification_history_id BIGSERIAL PRIMARY KEY,
+    service_id        BIGINT,
+    contact_group_id  BIGINT REFERENCES contact_groups(contact_group_id),
+    contact_group_member_id BIGINT REFERENCES contact_group_members(contact_group_member_id),
+    notification_channel_id BIGINT REFERENCES notification_channels(notification_channel_id),
+    recipient         VARCHAR(255),
+    subject           TEXT,
+    message           TEXT,
+    status            VARCHAR(20) DEFAULT 'sent', -- sent | failed | pending
+    sent_at           TIMESTAMP DEFAULT NOW(),
+    error_message     TEXT,
+
+ -- PDF Tracking
+    include_pdf     BOOLEAN DEFAULT FALSE,
+    pdf_template_id            BIGINT REFERENCES notification_templates(notification_template_id),
+    pdf_file_path   TEXT,
+    pdf_file_hash   VARCHAR(64),
+    pdf_generated_at    TIMESTAMP,
+
+    date_created TIMESTAMP DEFAULT NOW(),
+    date_modified TIMESTAMP DEFAULT NOW()
+);
+
+-- 3) MONITORING CORE (SERVICES, UPTIME, SSL, INCIDENTS, MAINTENANCE)
+
+CREATE TABLE monitored_services (
+  monitored_service_id                    SERIAL PRIMARY KEY,
+  monitored_service_uuid                  UUID UNIQUE,
+  monitored_service_name                  VARCHAR(200) NOT NULL,   --  eg. 'mwalimu sacco'
+  monitored_service_url                   TEXT NOT NULL,
+  monitored_service_region                VARCHAR(100) DEFAULT 'default',
+  contact_group_id      BIGINT REFERENCES contact_groups(contact_group_id),
+  check_interval        INTEGER DEFAULT 5,  -- minutes
+  retry_count           INTEGER DEFAULT 3,
+  retry_delay           INTEGER DEFAULT 5,  -- seconds
+  expected_status_code  INTEGER DEFAULT 200,
+  ssl_enabled           BOOLEAN DEFAULT TRUE,
+  created_by            BIGINT REFERENCES users(user_id),
+  date_created          TIMESTAMP DEFAULT NOW(),
+  date_modified         TIMESTAMP DEFAULT NOW(),
+  is_active             BOOLEAN DEFAULT TRUE
+);
+
+CREATE TRIGGER trg_monitored_services_uuid
+BEFORE INSERT ON monitored_services
+FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+CREATE TRIGGER trg_monitored_services_touch_modified
+BEFORE UPDATE ON monitored_services
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+-- High-volume logs (internal): no UUID
+CREATE TABLE uptime_logs (
+  uptime_log_id       BIGSERIAL PRIMARY KEY,
+  service_id          BIGINT REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE,
+  status              VARCHAR(10) NOT NULL, -- UP / DOWN
+  response_time_ms    INTEGER,
+  http_status         INTEGER,
+  error_message       TEXT,
+  region              VARCHAR(100),
+  checked_at          TIMESTAMP DEFAULT NOW(),
+  date_created        TIMESTAMP DEFAULT NOW(),
+  date_modified       TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX index_uptime_logs_service_id_checked_at_status ON uptime_logs(service_id, checked_at, status);
+
+-- SSL logs
+CREATE TABLE ssl_logs (
+  ssl_log_id        BIGSERIAL PRIMARY KEY,
+  service_id        BIGINT REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE,
+  domain            VARCHAR(255),
+  issuer            VARCHAR(255),
+  expiry_date       DATE,
+  days_remaining    INTEGER,
+  last_checked      TIMESTAMP DEFAULT NOW(),
+  date_created      TIMESTAMP DEFAULT NOW(),
+  date_modified     TIMESTAMP DEFAULT NOW()
+);
+
+-- Incident tickets
+CREATE TABLE incidents (
+  incident_id       BIGSERIAL PRIMARY KEY,
+  uuid              UUID UNIQUE,
+  service_id        BIGINT REFERENCES monitored_services(monitored_service_id),
+  started_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+  resolved_at       TIMESTAMP,
+  duration_minutes  INTEGER,
+  cause             TEXT,
+  status            VARCHAR(20) DEFAULT 'open', -- open | resolved
+  date_created      TIMESTAMP DEFAULT NOW(),
+  date_modified     TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TRIGGER trg_incidents_uuid
+BEFORE INSERT ON incidents
+FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+CREATE TRIGGER trg_incidents_touch_modified
+BEFORE UPDATE ON incidents
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+-- Maintenance windows
+/**
+    -- Skip uptime checks for services covered by an active maintenance window.
+    -- Suppress alerts or notifications (no downtime events).
+        @service_id = 5 - Maintenance only for that specific service.
+        @service_id IS NULL - Maintenance applies to all monitored services — system-wide pause.
+  */
+CREATE TABLE maintenance_windows (
+  maintenance_window_id  BIGSERIAL PRIMARY KEY,
+  uuid         UUID UNIQUE,
+  service_id    BIGINT NULL CONSTRAINT fk_monitored_services_maintenance_windows_service_id
+                REFERENCES monitored_services(monitored_service_id),
+  start_time   TIMESTAMP NOT NULL,
+  end_time     TIMESTAMP NOT NULL,
+  reason       TEXT,
+  created_by   BIGINT REFERENCES users(user_id),
+  date_created TIMESTAMP DEFAULT NOW(),
+  date_modified TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX index_maintenance_windows_active ON maintenance_windows(service_id, start_time, end_time);
+
+CREATE TRIGGER trg_maintenance_windows_uuid
+BEFORE INSERT ON maintenance_windows
+FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+CREATE TRIGGER trg_maintenance_windows_touch_modified
+BEFORE UPDATE ON maintenance_windows
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+
+
+CREATE TABLE event_outbox (
+    event_outbox_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),  -- unique ID
+    event_type      VARCHAR(100),                                 -- e.g. SERVICE_DOWN, SSL_EXPIRING
+    payload         JSONB NOT NULL,                               -- the actual event data (service_id, message, etc)
+    status          VARCHAR(20) DEFAULT 'PENDING',                -- current state
+    retries         INT DEFAULT 0,                                -- how many times we’ve tried to send
+    last_attempt_at TIMESTAMP,                                    -- last time the worker tried sending
+    created_at      TIMESTAMP DEFAULT NOW(),
+    updated_at      TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_event_outbox_status ON event_outbox(status);
+
+
+-- 4) REPORTING & HEALTH
+
+CREATE TABLE uptime_summaries (
+  uptime_summary_id         BIGSERIAL PRIMARY KEY,
+  service_id                BIGINT REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE,
+  date                      DATE,
+  uptime_percentage         NUMERIC(5,2),
+  average_response_time     NUMERIC(10,2),
+  incidents_count           INTEGER,
+  downtime_minutes          INTEGER,
+  date_created              TIMESTAMP DEFAULT NOW(),
+  date_modified             TIMESTAMP DEFAULT NOW()
+);
+
+-- logs of health of system components inside SkyPulse
+-- Continuously track the current health state of each internal system component or module.
+CREATE TABLE system_health_logs (
+  system_health_log_id  BIGSERIAL PRIMARY KEY,
+  component             VARCHAR(100),  -- eg 'ssl_checker'
+  status                VARCHAR(50),    -- RUNNING, OK, WARNING, FAILING, ERROR
+  message               TEXT,
+  last_checked          TIMESTAMP DEFAULT NOW(),
+  date_created          TIMESTAMP DEFAULT NOW(),
+  date_modified         TIMESTAMP DEFAULT NOW()
+);
+
+--To audit, schedule, and track execution results of each individual background job or cron task.
+CREATE TABLE background_tasks (
+    background_task_id BIGSERIAL PRIMARY KEY,
+    task_name          VARCHAR(150),
+    task_type          VARCHAR(50), -- uptime_check | ssl_check | report | cleanup
+    status             VARCHAR(20) DEFAULT 'PENDING',
+    last_run_at        TIMESTAMP,
+    next_run_at        TIMESTAMP,
+    error_message      TEXT,
+    date_created       TIMESTAMP DEFAULT NOW(),
+    date_modified      TIMESTAMP DEFAULT NOW()
+);
+
+
+-- 5) DYNAMIC FORM DEFINITIONS (frontend renderer, manual endpoints)
+
+-- Dynamic forms
+CREATE TABLE form_definitions (
+  form_definition_id  BIGSERIAL PRIMARY KEY,
+  uuid          UUID UNIQUE,
+  form_key      VARCHAR(150) UNIQUE NOT NULL, -- e.g. user-registration, system_configuration
+  title         VARCHAR(200),
+  subtitle      TEXT,
+  api_endpoint  VARCHAR(255),                 -- e.g. /api/rest/create-user
+  version       INTEGER DEFAULT 1,
+  created_by    BIGINT REFERENCES users(user_id),
+  date_created  TIMESTAMP DEFAULT NOW(),
+  date_modified TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TRIGGER trg_form_definitions_uuid
+BEFORE INSERT ON form_definitions
+FOR EACH ROW EXECUTE FUNCTION ensure_uuid();
+
+CREATE TRIGGER trg_form_definitions_touch_modified
+BEFORE UPDATE ON form_definitions
+FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
+
+-- Internal schema parts (no UUID)
+CREATE TABLE form_fields (
+  form_field_id    BIGSERIAL PRIMARY KEY,
+  form_id          BIGINT REFERENCES form_definitions(form_definition_id) ON DELETE CASCADE,
+  field_key        VARCHAR(150),
+  label            VARCHAR(255),
+  renderer         VARCHAR(50),   -- text, select, checkbox, etc.
+  input_type       VARCHAR(50),
+  default_value    TEXT,
+  rules            JSONB,
+  visible_when     JSONB,
+  props            JSONB,
+  order_index      INTEGER DEFAULT 0,
+  date_created     TIMESTAMP DEFAULT NOW(),
+  date_modified    TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE form_layouts (
+  form_layout_id   BIGSERIAL PRIMARY KEY,
+  form_id          BIGINT REFERENCES form_definitions(form_definition_id) ON DELETE CASCADE,
+  layout           JSONB,         -- grid/stack/section 
+  order_index      INTEGER DEFAULT 0,
+  date_created     TIMESTAMP DEFAULT NOW(),
+  date_modified    TIMESTAMP DEFAULT NOW()
+);
+
+-- Optional submission/audit trail
+CREATE TABLE form_audit_log (
+  form_audit_log_id  BIGSERIAL PRIMARY KEY,
+  form_key           VARCHAR(150),
+  submitted_by       BIGINT REFERENCES users(user_id),
+  payload            JSONB,
+  response           JSONB,
+  submitted_at       TIMESTAMP DEFAULT NOW(),
+  date_created       TIMESTAMP DEFAULT NOW(),
+  date_modified      TIMESTAMP DEFAULT NOW()
+);
+
+-- 6) AUDIT & SETTINGS
+
+CREATE TABLE audit_log (
+  audit_log_id    BIGSERIAL PRIMARY KEY,
+  user_id         BIGINT REFERENCES users(user_id),
+  entity          VARCHAR(150),
+  entity_id       BIGINT,
+  action          VARCHAR(50),  -- CREATE | UPDATE | DELETE
+  before_data     JSONB,
+  after_data      JSONB,
+  ip_address      VARCHAR(64),
+  date_created    TIMESTAMP DEFAULT NOW(),
+  date_modified   TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE system_settings (
+  system_setting_id  BIGSERIAL PRIMARY KEY,
+  key                VARCHAR(100) UNIQUE NOT NULL,
+  value              TEXT,
+  description        TEXT,
+  date_created       TIMESTAMP DEFAULT NOW(),
+  date_modified      TIMESTAMP DEFAULT NOW()
+);
