@@ -1,10 +1,16 @@
-docker run --name skypulse-db `
+docker run --name skypulse-database `
   -e POSTGRES_USER=spadmin `
   -e POSTGRES_PASSWORD=skyp@lse!2020 `
-  -e POSTGRES_DB=skypulse_database `
+  -e POSTGRES_DB=skypulse_monitoring_system_database `
   -v "$env:USERPROFILE\docker\skypulse_db\data:/var/lib/postgresql\data" `
   -p 5434:5432 `
   -d postgres:latest
+
+
+
+mvn clean package
+java -jar target/skyworld-project-java-1.0.0-SNAPSHOT.jar src/main/resources/config.xml
+
 
 
 | Category                   | Tables                                                                                                               |

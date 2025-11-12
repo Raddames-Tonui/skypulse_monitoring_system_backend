@@ -1,184 +1,172 @@
--- ===================================================================
--- SEED DATA FOR SYSTEM INITIALIZATION
--- ===================================================================
+-- SkyPulse Monitoring System - SEED DATA
+-- Active: 1762929513564@@127.0.0.1@5434@skypulse_monitoring_system_database
 
--- 1) ROLES
-INSERT INTO roles (name, description)
+--  ROLES
+INSERT INTO roles (role_name, role_description)
 VALUES
-('Admin', 'Full system access'),
-('Operator', 'Manages uptime and notifications'),
-('Viewer', 'Can only view dashboards');
+ ('Admin', 'Full system access'),
+ ('Operator', 'Can manage services and alerts'),
+ ('Viewer', 'Read-only dashboard access')
+ON CONFLICT (role_name) DO NOTHING;
 
--- 2) PERMISSIONS
-INSERT INTO permissions (code, description)
+--  PERMISSIONS
+INSERT INTO permissions (permission_code, permission_description)
 VALUES
-('manage_users', 'Create, edit, or deactivate users'),
-('view_reports', 'Access analytics and uptime reports'),
-('manage_services', 'Add or configure monitored services'),
-('view_services', 'View monitored service status'),
-('manage_notifications', 'Edit notification templates and contact groups');
+ ('manage_users', 'Create, edit, and delete users'),
+ ('manage_services', 'Add or remove monitored services'),
+ ('view_reports', 'Access uptime and SSL reports'),
+ ('configure_system', 'Modify global settings')
+ON CONFLICT (permission_code) DO NOTHING;
 
--- 3) ROLE-PERMISSION MAPPINGS
-INSERT INTO role_permissions (role_id, permission_id, can_view, can_create, can_update, can_delete)
-SELECT
-  r.id, p.id, TRUE, TRUE, TRUE, TRUE
-FROM roles r
-JOIN permissions p ON r.name = 'Admin';
+--  USERS
+INSERT INTO users (first_name, last_name, user_email, password_hash, role_id, company_name)
+SELECT 'Alice','Muthoni','admin@skywatch.com',
+       '$2a$12$1234567890523456789012abcdefghijklmno12345678901234567890',
+       r.role_id, 'SkyWatch Inc.'
+FROM roles r WHERE r.role_name='Admin'
+UNION ALL
+SELECT 'Brian','Otieno','ops@skywatch.com',
+       '$2a$12$1234567890153456789012abcdefghijklmno12345678901234567890',
+       r.role_id, 'SkyWatch Inc.'
+FROM roles r WHERE r.role_name='Operator'
+UNION ALL
+SELECT 'Carol','Wanjiku','viewer@skywatch.com',
+       '$2a$12$1234567890823456789012abcdefghijklmno12345678901234567890',
+       r.role_id, 'SkyWatch Inc.'
+FROM roles r WHERE r.role_name='Viewer'
+ON CONFLICT (user_email) DO NOTHING;
 
-INSERT INTO role_permissions (role_id, permission_id, can_view, can_create, can_update, can_delete)
-SELECT
-  r.id, p.id, TRUE, TRUE, TRUE, FALSE
-FROM roles r
-JOIN permissions p ON r.name = 'Operator';
+--  USER PREFERENCES
+INSERT INTO user_preferences (user_id, theme, alert_channel, language, timezone)
+SELECT user_id, 'dark', 'email', 'en', 'UTC' FROM users
+ON CONFLICT (user_id) DO NOTHING;
 
-INSERT INTO role_permissions (role_id, permission_id, can_view, can_create, can_update, can_delete)
-SELECT
-  r.id, p.id, TRUE, FALSE, FALSE, FALSE
-FROM roles r
-JOIN permissions p ON r.name = 'Viewer';
+--  USER CONTACTS
+INSERT INTO user_contacts (user_id, type, value, verified, is_primary)
+SELECT user_id, 'email', user_email, TRUE, TRUE FROM users
+ON CONFLICT DO NOTHING;
 
--- 4) ADMIN USER
-INSERT INTO users (uuid, first_name, last_name, email, password_hash, role_id, is_active, timezone)
-VALUES (
-  uuid_generate_v4(),
-  'System',
-  'Administrator',
-  'admin@system.local',
-  '$2a$12$XEXAMPLEHASHQp3ZbG6z9x1Gf2kjwOC8fQwY7pPoXG', -- Replace with real bcrypt hash
-  (SELECT id FROM roles WHERE name='Admin'),
-  TRUE,
-  'Africa/Nairobi'
-);
+--  LOGIN ATTEMPTS
+INSERT INTO login_attempts (user_id, user_email, ip_address, status, reason)
+SELECT user_id, user_email, '102.45.66.7', 'SUCCESS', NULL
+FROM users WHERE user_email='admin@skywatch.com'
+UNION ALL
+SELECT user_id, user_email, '197.231.15.10', 'FAILURE', 'Incorrect password'
+FROM users WHERE user_email='ops@skywatch.com';
 
--- 5) CONTACT GROUPS
-INSERT INTO contact_groups (uuid, name, description, created_by)
+--  USER AUDIT SESSION
+INSERT INTO user_audit_session (user_id, ip_address, user_agent, login_time)
+SELECT user_id, '102.45.66.7', 'Chrome/120.0', NOW() - INTERVAL '3 hours'
+FROM users WHERE user_email='admin@skywatch.com';
+
+--  NOTIFICATION CHANNELS
+INSERT INTO notification_channels (notification_channel_code, notification_channel_name, is_enabled)
 VALUES
-(uuid_generate_v4(), 'Default Alerts', 'Primary alert recipients', 1),
-(uuid_generate_v4(), 'Technical Team', 'Developers and SREs', 1);
+ ('EMAIL','Email Alerts',TRUE),
+ ('TELEGRAM','Telegram Bot',TRUE),
+ ('SMS','Text Alerts',FALSE)
+ON CONFLICT (notification_channel_code) DO NOTHING;
 
-INSERT INTO contact_group_members (group_id, name, email, phone)
+--  CONTACT GROUPS
+INSERT INTO contact_groups (contact_group_name, contact_group_description)
 VALUES
-((SELECT id FROM contact_groups WHERE name='Default Alerts'), 'Admin User', 'admin@system.local', '254700000001'),
-((SELECT id FROM contact_groups WHERE name='Technical Team'), 'DevOps', 'ops@system.local', '254700000002');
+ ('Ops Team','Handles uptime and SSL issues'),
+ ('Developers','Investigates incidents and bug reports'),
+ ('Executives','Receives summary reports')
+ON CONFLICT (contact_group_name) DO NOTHING;
 
--- 6) NOTIFICATION CHANNELS
-INSERT INTO notification_channels (code, name)
-VALUES
-('EMAIL', 'Email Notifications'),
-('SMS', 'SMS Alerts'),
-('TELEGRAM', 'Telegram Alerts');
+--  CONTACT GROUP MEMBERS
+INSERT INTO contact_group_members (contact_group_id, user_id, is_primary)
+SELECT cg.contact_group_id, u.user_id, TRUE
+FROM contact_groups cg, users u
+WHERE cg.contact_group_name='Ops Team' AND u.user_email='ops@skywatch.com'
+ON CONFLICT DO NOTHING;
 
--- 7) MONITORED SERVICE
-INSERT INTO monitored_services (uuid, name, url, region, contact_group_id, created_by)
-VALUES (
-  uuid_generate_v4(),
-  'Main Website',
-  'https://example.com',
-  'global',
-  (SELECT id FROM contact_groups WHERE name='Default Alerts'),
-  1
-);
+--  MONITORED SERVICES
+INSERT INTO monitored_services (monitored_service_name, monitored_service_url, monitored_service_region,
+                                contact_group_id, check_interval, retry_count, ssl_enabled, created_by)
+SELECT 'Main Website','https://skywatch.com','default', cg.contact_group_id, 5, 3, TRUE, u.user_id
+FROM contact_groups cg, users u
+WHERE cg.contact_group_name='Ops Team' AND u.user_email='admin@skywatch.com'
+UNION ALL
+SELECT 'API Gateway','https://api.skywatch.com/health','default', cg.contact_group_id, 2, 3, TRUE, u.user_id
+FROM contact_groups cg, users u
+WHERE cg.contact_group_name='Ops Team' AND u.user_email='ops@skywatch.com'
+UNION ALL
+SELECT 'Client Portal','https://portal.skywatch.com','default', cg.contact_group_id, 10, 2, TRUE, u.user_id
+FROM contact_groups cg, users u
+WHERE cg.contact_group_name='Developers' AND u.user_email='admin@skywatch.com'
+ON CONFLICT DO NOTHING;
 
--- 8) SAMPLE SSL LOG
+--  UPTIME LOGS
+INSERT INTO uptime_logs (service_id, status, response_time_ms, http_status, region)
+SELECT monitored_service_id, 'UP', (100 + random()*400)::int, 200, 'default'
+FROM monitored_services
+LIMIT 5;
+
+--  SSL LOGS
 INSERT INTO ssl_logs (service_id, domain, issuer, expiry_date, days_remaining)
-VALUES (
-  (SELECT id FROM monitored_services WHERE name='Main Website'),
-  'example.com',
-  'Let''s Encrypt',
-  CURRENT_DATE + INTERVAL '75 days',
-  75
-);
+SELECT monitored_service_id, monitored_service_url, 'Let''s Encrypt',
+       NOW() + INTERVAL '60 days', 60
+FROM monitored_services
+WHERE ssl_enabled=TRUE;
 
--- 9) SAMPLE UPTIME LOGS
-INSERT INTO uptime_logs (service_id, status, response_time_ms, http_status, checked_at)
+--  INCIDENTS
+INSERT INTO incidents (service_id, cause, started_at, resolved_at, status)
+SELECT monitored_service_id, 'Server downtime', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '2 hours', 'resolved'
+FROM monitored_services WHERE monitored_service_name='Main Website'
+UNION ALL
+SELECT monitored_service_id, 'Slow API response', NOW() - INTERVAL '1 day', NULL, 'open'
+FROM monitored_services WHERE monitored_service_name='API Gateway';
+
+--  MAINTENANCE WINDOWS
+INSERT INTO maintenance_windows (service_id, start_time, end_time, reason, created_by)
+SELECT monitored_service_id, NOW()+INTERVAL '1 day', NOW()+INTERVAL '1 day 1 hour', 'System Upgrade', u.user_id
+FROM monitored_services, users u WHERE u.user_email='admin@skywatch.com';
+
+--  SYSTEM HEALTH LOGS
+INSERT INTO system_health_logs (component, status, message)
 VALUES
-((SELECT id FROM monitored_services WHERE name='Main Website'), 'UP', 320, 200, NOW() - INTERVAL '5 minutes'),
-((SELECT id FROM monitored_services WHERE name='Main Website'), 'UP', 410, 200, NOW() - INTERVAL '10 minutes'),
-((SELECT id FROM monitored_services WHERE name='Main Website'), 'DOWN', NULL, 500, NOW() - INTERVAL '20 minutes');
+ ('uptime_worker','OK','50 services checked'),
+ ('ssl_checker','OK','SSL checks completed'),
+ ('notifier','DEGRADED','Telegram latency'),
+ ('report_generator','OK','Daily reports generated');
 
--- 10) SAMPLE INCIDENT
-INSERT INTO incidents (uuid, service_id, started_at, cause, status)
-VALUES (
-  uuid_generate_v4(),
-  (SELECT id FROM monitored_services WHERE name='Main Website'),
-  NOW() - INTERVAL '20 minutes',
-  'HTTP 500 responses detected',
-  'open'
-);
-
--- 11) MAINTENANCE WINDOW
-INSERT INTO maintenance_windows (uuid, service_id, start_time, end_time, reason, created_by)
-VALUES (
-  uuid_generate_v4(),
-  (SELECT id FROM monitored_services WHERE name='Main Website'),
-  NOW() + INTERVAL '1 day',
-  NOW() + INTERVAL '1 day 2 hours',
-  'Scheduled deployment window',
-  1
-);
-
--- 12) NOTIFICATION TEMPLATE
-INSERT INTO notification_templates (uuid, event_type, subject_template, body_template, created_by)
-VALUES (
-  uuid_generate_v4(),
-  'service_down',
-  'Service {{service_name}} is DOWN',
-  'Alert: The service {{service_name}} failed at {{timestamp}}. Status: {{status}}.',
-  1
-);
-
--- 13) FORM DEFINITIONS
-INSERT INTO form_definitions (uuid, form_key, title, subtitle, api_endpoint, created_by)
-VALUES (
-  uuid_generate_v4(),
-  'user-registration',
-  'Create User Account',
-  'Admin form for registering users',
-  '/api/rest/create-user',
-  1
-);
-
-INSERT INTO form_fields (form_id, field_key, label, renderer, input_type, rules, order_index)
+--  BACKGROUND TASKS
+INSERT INTO background_tasks (task_name, task_type, status, last_run_at, next_run_at)
 VALUES
-(
-  (SELECT id FROM form_definitions WHERE form_key='user-registration'),
-  'first_name',
-  'First Name',
-  'text',
-  'text',
-  '{"required": "First name is required"}',
-  1
-),
-(
-  (SELECT id FROM form_definitions WHERE form_key='user-registration'),
-  'email',
-  'Email',
-  'text',
-  'email',
-  '{"required": "Email is required"}',
-  2
-),
-(
-  (SELECT id FROM form_definitions WHERE form_key='user-registration'),
-  'password',
-  'Password',
-  'text',
-  'password',
-  '{"required": "Password is required"}',
-  3
-);
+ ('Uptime Worker','uptime_check','SUCCESS',NOW()-INTERVAL '5 minutes',NOW()+INTERVAL '5 minutes'),
+ ('SSL Monitor','ssl_check','SUCCESS',NOW()-INTERVAL '1 hour',NOW()+INTERVAL '1 hour'),
+ ('Report Generator','report','SUCCESS',NOW()-INTERVAL '2 hours',NOW()+INTERVAL '12 hours');
 
-INSERT INTO form_layouts (form_id, layout)
+--  NOTIFICATION TEMPLATES
+INSERT INTO notification_templates (event_type, subject_template, body_template)
 VALUES
-(
-  (SELECT id FROM form_definitions WHERE form_key='user-registration'),
-  '{"kind": "stack", "children": [{"kind": "field", "fieldId": "first_name"}, {"kind": "field", "fieldId": "email"}, {"kind": "field", "fieldId": "password"}]}'
-);
+ ('service_down','Service Down: {{service_name}}','Service {{service_name}} is DOWN at {{timestamp}}'),
+ ('service_up','Service Up: {{service_name}}','Service {{service_name}} recovered at {{timestamp}}'),
+ ('ssl_expiry','SSL Expiry Warning: {{domain}}','SSL for {{domain}} expires in {{days_remaining}} days.')
+ON CONFLICT DO NOTHING;
 
--- 14) SYSTEM SETTINGS
+--  SYSTEM SETTINGS
 INSERT INTO system_settings (key, value, description)
 VALUES
-('system.name', 'PulseWatch', 'System display name'),
-('check.interval.default', '5', 'Default service check interval (minutes)'),
-('alert.retries', '3', 'Number of retries before marking as down'),
-('timezone.default', 'Africa/Nairobi', 'System timezone');
+ ('default_check_interval','5','Default uptime check interval in minutes'),
+ ('ssl_expiry_threshold_days','30','Days before SSL expiry to alert'),
+ ('retry_count','3','Number of retries before marking service as down'),
+ ('timezone','UTC','System default timezone')
+ON CONFLICT (key) DO NOTHING;
+
+--  FORM DEFINITIONS
+INSERT INTO form_definitions (form_key, title, subtitle, api_endpoint)
+VALUES
+ ('service_registration','Register New Service','Add new monitored endpoint','/api/rest/create-service'),
+ ('contact_group_form','Create Contact Group','Define alert recipients','/api/rest/create-contact-group')
+ON CONFLICT (form_key) DO NOTHING;
+
+--  AUDIT LOG
+INSERT INTO audit_log (user_id, entity, entity_id, action, ip_address, after_data)
+SELECT u.user_id, 'monitored_services', s.monitored_service_id, 'CREATE', '127.0.0.1',
+       json_build_object('name', s.monitored_service_name)
+FROM users u, monitored_services s
+WHERE u.user_email='admin@skywatch.com'
+LIMIT 3;
