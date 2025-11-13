@@ -12,7 +12,7 @@
 
     <!-- Optional rolling file (only if you want local logs too) -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/dev-skypulse.log</file>
+        <file>tmp/logs/dev-skypulse.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>logs/dev-skypulse-%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>5</maxHistory>

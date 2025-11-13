@@ -93,6 +93,14 @@ public class DatabaseManager {
         return hc;
     }
 
+    /** Return current DataSource for health checks or direct queries */
+    public static HikariDataSource getDataSource() {
+        if (dataSource == null) {
+            throw new IllegalStateException("Database not initialized. Call initialize() first.");
+        }
+        return dataSource;
+    }
+
     /**
      * Shutdown the Connection Pool
      * */

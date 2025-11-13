@@ -1,4 +1,4 @@
-package org.skypulse.config.utils;
+package org.skypulse.utils;
 
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.Unmarshaller;

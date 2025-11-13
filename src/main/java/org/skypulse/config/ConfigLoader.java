@@ -1,7 +1,7 @@
 package org.skypulse.config;
 
 import org.skypulse.config.utils.KeyProvider;
-import org.skypulse.config.utils.XmlUtil;
+import org.skypulse.utils.XmlUtil;
 import org.w3c.dom.Document;
 
 
