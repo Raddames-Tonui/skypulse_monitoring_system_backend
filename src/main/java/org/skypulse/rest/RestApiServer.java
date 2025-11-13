@@ -8,7 +8,7 @@ import io.undertow.server.handlers.PathHandler;
 import io.undertow.util.Headers;
 import org.skypulse.config.XmlConfiguration;
 import org.skypulse.config.database.DatabaseManager;
-import org.skypulse.config.utils.KeyProvider;
+import org.skypulse.utils.security.KeyProvider;
 import org.skypulse.config.base.CORSHander;
 import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;

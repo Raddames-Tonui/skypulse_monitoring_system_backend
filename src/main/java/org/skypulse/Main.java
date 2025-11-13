@@ -29,7 +29,6 @@ public class Main {
             XmlConfiguration cfg = ConfigLoader.loadConfig(configPath);
             logger.debug("Configuration loaded successfully from {}", configPath);
 
-            // --- Initialize DB ---
             boolean dbAvailable = false;
             try {
                 DatabaseManager.initialize(cfg);
@@ -39,11 +38,9 @@ public class Main {
                 logger.warn("Continuing startup in DEGRADE MODE — database unavailable.");
             }
 
-            // --- Start Undertow server ---
             logger.info("Starting Undertow server...");
             RestApiServer.startUndertow(cfg);
 
-            //  Schedule background DB reconnect ---
             if (!dbAvailable) {
                 logger.info("Starting background reconnection monitor...");
                 TaskScheduler.scheduleReconnect(() -> {
@@ -56,7 +53,6 @@ public class Main {
                 });
             }
 
-            // --- Shutdown hook ---
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 logger.info("Shutdown initiated...");
                 TaskScheduler.shutdown();

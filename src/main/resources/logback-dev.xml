@@ -30,6 +30,6 @@
 
     <logger name="io.undertow" level="DEBUG"/>
     <logger name="com.zaxxer.hikari" level="DEBUG"/>
-    <logger name="org.skypulse.config.utils.KeyProvider" level="DEBUG"/>
+    <logger name="org.skypulse.utils.security.KeyProvider" level="DEBUG"/>
     <logger name="org.skypulse" level="DEBUG"/>
 </configuration>

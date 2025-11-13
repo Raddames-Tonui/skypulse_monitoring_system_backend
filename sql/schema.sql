@@ -71,7 +71,6 @@ CREATE TABLE users (
     last_name      VARCHAR(20),
     user_email     VARCHAR(50) UNIQUE NOT NULL,
     password_hash  TEXT NOT NULL CHECK (char_length(password_hash) >= 20),
-    password_hash_version SMALLINT DEFAULT 1,  -- BCrypt, Argon2
     role_id        BIGINT,
     last_login_at  TIMESTAMP,   -- updated on successful login
     last_seen_at   TIMESTAMP,   -- updated on every API hit or dashboard view

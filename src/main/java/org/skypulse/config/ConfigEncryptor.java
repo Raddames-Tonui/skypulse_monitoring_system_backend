@@ -1,6 +1,6 @@
 package org.skypulse.config;
 
-import org.skypulse.config.utils.KeyProvider;
+import org.skypulse.utils.security.KeyProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -9,10 +9,7 @@ import org.w3c.dom.NodeList;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.Transformer;
@@ -28,8 +25,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.security.spec.KeySpec;
-import java.util.Base64;
+
+import static org.skypulse.utils.security.SecureFieldCrypto.*;
 
 /**
  * - encrypt IN-PLACE (same file)
@@ -178,23 +175,4 @@ public class ConfigEncryptor {
         return new String(pt, StandardCharsets.UTF_8);
     }
 
-    private static SecretKey deriveKey(String password, byte[] salt) throws Exception {
-        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_BITS);
-        byte[] keyBytes = skf.generateSecret(spec).getEncoded();
-        return new SecretKeySpec(keyBytes, "AES");
-    }
-
-    private static byte[] randomBytes(int n) {
-        byte[] b = new byte[n];
-        RNG.nextBytes(b);
-        return b;
-    }
-
-    private static String b64(byte[] in) {
-        return Base64.getEncoder().withoutPadding().encodeToString(in);
-    }
-    private static byte[] b64d(String s) {
-        return Base64.getDecoder().decode(s);
-    }
 }
