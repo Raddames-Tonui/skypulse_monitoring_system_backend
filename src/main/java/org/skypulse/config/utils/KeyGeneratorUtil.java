@@ -1,4 +1,4 @@
-package org.skypulse.config;
+package org.skypulse.config.utils;
 
 import java.security.SecureRandom;
 import java.util.Base64;

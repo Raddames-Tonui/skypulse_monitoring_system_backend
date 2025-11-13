@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<configurtion>
+<configuration>
     <!--  Undertow Server Configuration -->
     <server>
         <host mode="TEXT">localhost</host>
@@ -14,7 +14,7 @@
         <driverClassName mode="TEXT">org.postgresql.Driver</driverClassName>
         <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5434/skypulse_monitoring_system_database</jdbcUrl>
 
-        <user  mode="TEXT">spadmin</user>
+        <username  mode="TEXT">spadmin</username>
         <password  mode="TEXT">skyp@lse!2020</password>
 
         <!-- SSL Fix -->
@@ -23,13 +23,14 @@
     </dataSource>
 
     <!-- HikariCP Connection Pool Configuration -->
-    <ConnectionPool>
-        <maximumPoolSize  mode="TEXT">10</maximumPoolSize>
-        <minimumIdle  mode="TEXT">2</minimumIdle>
-        <idleTimeout  mode="TEXT">60000</idleTimeout>
-        <connectionTimeout  mode="TEXT">30000</connectionTimeout>
-        <maxLifetime  mode="TEXT">1800000</maxLifetime>
-    </ConnectionPool>
+    <!--  pool size ≈ (CPU cores × 2) + effective DB parallelism -->
+    <connectionPool>
+        <maximumPoolSize mode="TEXT">10</maximumPoolSize>
+        <minimumIdle mode="TEXT" >2</minimumIdle>
+        <idleTimeout mode="TEXT">60000</idleTimeout>
+        <connectionTimeout mode="TEXT">30000</connectionTimeout>
+        <maxLifetime mode="TEXT">1800000</maxLifetime>
+    </connectionPool>
 
     <!-- Logging -->
     <logging>
@@ -70,4 +71,4 @@
             <maxRetries mode="TEXT">2</maxRetries>
         </sms>
     </notification>
-</configurtion>
+</configuration>
