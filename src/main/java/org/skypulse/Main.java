@@ -6,6 +6,7 @@ import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.TaskScheduler;
 import org.skypulse.config.utils.LogContext;
 import org.skypulse.rest.RestApiServer;
+import org.skypulse.utils.security.CryptoInit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,8 @@ public class Main {
         LogContext.start("Main");
         try {
             logger.info("Starting SkyPulse System...");
+
+            CryptoInit.init();
 
             String configPath = (args.length > 0) ? args[0] : "config.xml";
             XmlConfiguration cfg = ConfigLoader.loadConfig(configPath);

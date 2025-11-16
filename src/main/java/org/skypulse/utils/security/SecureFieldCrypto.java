@@ -1,5 +1,7 @@
 package org.skypulse.utils.security;
 
+import org.jetbrains.annotations.NotNull;
+
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.SecretKey;
@@ -28,17 +30,22 @@ public class SecureFieldCrypto {
 
         String password = KeyProvider.getEncryptionKey();
 
-        byte[] salt = randomBytes(SALT_BYTES);
+        return getString(plaintext, password, SALT_BYTES, IV_BYTES, GCM_TAG_BITS, PREFIX);
+    }
+
+    @NotNull
+    public static String getString(String plaintext, String password, int saltBytes, int ivBytes, int gcmTagBits, String prefix) throws Exception {
+        byte[] salt = randomBytes(saltBytes);
         SecretKey key = deriveKey(password, salt);
 
-        byte[] iv = randomBytes(IV_BYTES);
+        byte[] iv = randomBytes(ivBytes);
 
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_BITS, iv));
+        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(gcmTagBits, iv));
 
         byte[] ct = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
 
-        return PREFIX + b64(salt) + ":" + b64(iv) + ":" + b64(ct);
+        return prefix + b64(salt) + ":" + b64(iv) + ":" + b64(ct);
     }
 
     public static String decrypt(String encrypted) throws Exception {

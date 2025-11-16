@@ -11,24 +11,29 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.SQLException;
 
-
 /**
  * Handles database connectivity using HikariCP connection pooling.
- * Automatically toggles SSL based on configuration.
+ * Fully supports degraded-mode startup and background reconnection.
  */
 public class DatabaseManager {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseManager.class);
-    private static HikariDataSource dataSource;
+
+    private static volatile HikariDataSource dataSource;
+    private static volatile boolean initialized = false;
+
+    public static boolean isInitialized() {
+        return initialized;
+    }
 
     /**
-     * Initializes the HikariCP connection pool from the Configuration.
-     * @param cfg Configuration object loaded from XML.
-     * @throws SQLException if the database connection fails.
+     * Initializes the HikariCP connection pool from the configuration.
+     * Safe to call repeatedly (for background reconnection attempts).
      */
-    public static void initialize(XmlConfiguration cfg) throws SQLException {
+    public static synchronized void initialize(XmlConfiguration cfg) throws SQLException {
         LogContext.start("DatabaseManager");
+
         if (cfg == null || cfg.dataSource == null || cfg.connectionPool == null) {
-            logger.error("Invalid configuration: missing dataSource or connectionPool section.");
+            initialized = false;
             throw new SQLException("Invalid configuration: missing dataSource or connectionPool section.");
         }
 
@@ -36,7 +41,7 @@ public class DatabaseManager {
             logger.info("Initializing database connection...");
             HikariConfig hc = getHikariConfig(cfg);
 
-            // --- Conditional SSL Configuration ---
+            // SSL settings
             if (cfg.dataSource.encrypt) {
                 hc.addDataSourceProperty("ssl", "true");
                 hc.addDataSourceProperty("sslmode", "require");
@@ -46,25 +51,30 @@ public class DatabaseManager {
                 logger.info("SSL disabled for PostgreSQL connection");
             }
 
-
-            // --- Create and test pool ---
-            dataSource = new HikariDataSource(hc);
+            // Build pool
+            HikariDataSource newDs = new HikariDataSource(hc);
 
             logger.debug("Testing initial database connection...");
-            try (Connection conn = dataSource.getConnection()) {
-                if (conn.isValid(2)){
-                    logger.info("Database connection successful!");
-                } else {
+            try (Connection conn = newDs.getConnection()) {
+                if (!conn.isValid(2)) {
+                    newDs.close();
                     throw new SQLException("Connection failed: connection is invalid.");
                 }
             }
-        }catch (SQLException e){
+
+            if (dataSource != null) {
+                try { dataSource.close(); } catch (Exception ignored) {}
+            }
+
+            dataSource = newDs;
+            initialized = true;
+            logger.info("Database connection successful!");
+
+        } catch (Exception e) {
+            initialized = false;
             logger.error("Database initialization failed: {}", e.getMessage());
             shutdown();
-            throw e; // propagate to main
-        } catch (Exception e){
-            logger.error("Unexpected error during DB initialization: ", e);
-            throw new SQLException("Unexpected error during DB initialization: " + e);
+            throw new SQLException(e);
         } finally {
             LogContext.clear();
         }
@@ -73,8 +83,6 @@ public class DatabaseManager {
     @NotNull
     private static HikariConfig getHikariConfig(XmlConfiguration cfg) {
         HikariConfig hc = new HikariConfig();
-
-        // --- JDBC settings ---
         hc.setJdbcUrl(cfg.dataSource.jdbcUrl);
         hc.setUsername(cfg.dataSource.username);
         hc.setPassword(cfg.dataSource.password);
@@ -83,8 +91,6 @@ public class DatabaseManager {
                         ? cfg.dataSource.driverClassName
                         : "org.postgresql.Driver"
         );
-
-        // --- Connection Pool Settings ---
         hc.setMaximumPoolSize(cfg.connectionPool.maximumPoolSize);
         hc.setMinimumIdle(cfg.connectionPool.minimumIdle);
         hc.setIdleTimeout(cfg.connectionPool.idleTimeout);
@@ -93,19 +99,17 @@ public class DatabaseManager {
         return hc;
     }
 
-    /** Return current DataSource for health checks or direct queries */
+
     public static HikariDataSource getDataSource() {
-        if (dataSource == null) {
-            throw new IllegalStateException("Database not initialized. Call initialize() first.");
-        }
-        return dataSource;
+        return initialized ? dataSource : null;
     }
 
     /**
-     * Shutdown the Connection Pool
-     * */
-    public static void shutdown(){
-        if (dataSource != null){
+     * Shutdown the connection pool safely.
+     */
+    public static synchronized void shutdown() {
+        initialized = false;
+        if (dataSource != null) {
             try {
                 dataSource.close();
                 logger.info("Database connection pool shutdown successfully.");
@@ -114,5 +118,4 @@ public class DatabaseManager {
             }
         }
     }
-
 }

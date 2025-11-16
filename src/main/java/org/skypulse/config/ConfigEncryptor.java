@@ -1,6 +1,7 @@
 package org.skypulse.config;
 
 import org.skypulse.utils.security.KeyProvider;
+import org.skypulse.utils.security.SecureFieldCrypto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -148,15 +149,7 @@ public class ConfigEncryptor {
 
     // --- Crypto helpers ---
     private static String seal(String password, String plaintext) throws Exception {
-        byte[] salt = randomBytes(SALT_BYTES);
-        SecretKey key = deriveKey(password, salt);
-
-        byte[] iv = randomBytes(IV_BYTES);
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_BITS, iv));
-        byte[] ct = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-
-        return PREFIX + b64(salt) + ":" + b64(iv) + ":" + b64(ct);
+        return SecureFieldCrypto.getString(plaintext, password, SALT_BYTES, IV_BYTES, GCM_TAG_BITS, PREFIX);
     }
 
     private static String open(String password, String payload) throws Exception {

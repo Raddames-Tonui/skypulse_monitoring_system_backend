@@ -40,20 +40,15 @@ public class KeyProvider {
     private static final ConcurrentHashMap<String, String> CACHE = new ConcurrentHashMap<>();
 
 
-    /** -------------------------------------------------------------
-     *  INITIALIZER — no recursion allowed
-     * -------------------------------------------------------------- */
     private static synchronized void init() {
         if (initialized) return;
 
         try {
-            // Load .env FIRST (lightweight)
             dotenv = Dotenv.configure()
                     .ignoreIfMalformed()
                     .ignoreIfMissing()
                     .load();
 
-            // Determine APP_ENV
             String env = System.getenv(ENV_ENVIRONMENT);
             if (env == null || env.isBlank()) {
                 env = dotenv.get(ENV_ENVIRONMENT, "PRODUCTION");
@@ -61,7 +56,6 @@ public class KeyProvider {
             activeEnv = env.toUpperCase();
             System.setProperty(ENV_ENVIRONMENT, activeEnv);
 
-            // Load correct logback WITHOUT logging until logger is ready
             if ("DEVELOPMENT".equals(activeEnv)) {
                 loadLogback("logback-dev.xml");
             } else {
@@ -80,9 +74,6 @@ public class KeyProvider {
     }
 
 
-    /** -------------------------------------------------------------
-     *  SECRET FETCHER (ANY KEY)
-     * -------------------------------------------------------------- */
     public static String get(String keyName) {
         if (!initialized) init();
 
@@ -112,17 +103,14 @@ public class KeyProvider {
     }
 
 
-    /** -------------------------------------------------------------
-     *  ENCRYPTION MASTER KEY
-     * -------------------------------------------------------------- */
+    /** ENCRYPTION MASTER KEY */
+
     public static String getEncryptionKey() {
         return get(ENV_MASTER_KEY);
     }
 
 
-    /** -------------------------------------------------------------
-     *  SECURE FILE-BASED SECRET LOADING (docker/k8s)
-     * -------------------------------------------------------------- */
+    /** SECURE FILE-BASED SECRET LOADING (docker/k8s) */
     public static String getKeyFromFile(String filePath) {
         if (!initialized) init();
 
@@ -143,9 +131,7 @@ public class KeyProvider {
     }
 
 
-    /** -------------------------------------------------------------
-     *  ENVIRONMENT HELPERS (NO RECURSION)
-     * -------------------------------------------------------------- */
+    /** ENVIRONMENT HELPERS (NO RECURSION) */
     public static boolean isDev() {
         return "DEVELOPMENT".equalsIgnoreCase(activeEnv);
     }
@@ -160,9 +146,7 @@ public class KeyProvider {
     }
 
 
-    /**
-     *  LOAD LOGBACK SAFELY (NO LOGGER until fully initialized)
-     *  */
+    /**LOAD LOGBACK SAFELY (NO LOGGER until fully initialized)*/
     private static void loadLogback(String fileName) {
         try {
             LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();

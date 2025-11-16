@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class RestApiServer {
     private static final Logger logger = LoggerFactory.getLogger(RestApiServer.class);
@@ -34,7 +35,7 @@ public class RestApiServer {
         try {
             String BASE_REST_API_URL = cfg.server.basePath;
 
-            // --- Root health-check endpoint ---
+            // --- health-check endpoint ---
             HttpHandler rootHandler = exchange -> {
                 exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
                 Map<String, Object> status = new LinkedHashMap<>();
@@ -46,17 +47,23 @@ public class RestApiServer {
 
                 // DB connection health
                 boolean dbOK = false;
-                try (Connection conn = DatabaseManager.getDataSource().getConnection()){
-                    dbOK = conn.isValid(2);
-                }catch (SQLException ignored){}
+                if (DatabaseManager.isInitialized()) {
+                    try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
+                        dbOK = conn.isValid(2);
+                    } catch (SQLException ignored) {
+                    }
+                }
                 status.put("database", dbOK ? "connected" : "unavailable");
 
-                String json = JsonUtil.mapper.writeValueAsString(status);
+                String json = JsonUtil.mapper().writeValueAsString(status);
                 exchange.getResponseSender().send(json);
+
             };
 
             PathHandler pathHandler = Handlers.path()
-                    .addPrefixPath(BASE_REST_API_URL+"/health", rootHandler);
+                    .addPrefixPath(BASE_REST_API_URL+"/health", rootHandler)
+                    .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth());
+
 
             Undertow server = Undertow.builder()
                     .setServerOption(UndertowOptions.DECODE_URL, true)
@@ -71,7 +78,7 @@ public class RestApiServer {
 
             server.start();
             logger.info("""
-                                               
+                                              \s
                                                    .---.           .---.
                                                   /     \\\\\\\\  __   //     \\\\\\\\
                                                  / /     \\\\\\\\(o o)//     \\\\ \\\\\\\\
@@ -87,7 +94,7 @@ public class RestApiServer {
                                         Undertow server started successfully!
                                         Database connection established.
                                         Host   : http://{}:{}{}
-                    """,
+                   \s""",
                     cfg.server.host, cfg.server.port, cfg.server.basePath);
 
         } catch (Exception e){
