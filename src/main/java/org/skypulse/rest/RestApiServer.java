@@ -9,7 +9,7 @@ import io.undertow.util.Headers;
 import org.skypulse.config.XmlConfiguration;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.security.KeyProvider;
-import org.skypulse.config.base.CORSHander;
+import org.skypulse.rest.base.CORSHander;
 import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

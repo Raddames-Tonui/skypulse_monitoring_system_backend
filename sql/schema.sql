@@ -1,8 +1,6 @@
--- Active: 1762929513564@@127.0.0.1@5434@skypulse_monitoring_system_database
--- SkyPulse Monitoring System 
+-- SkyPulse Monitoring System
 
 -- CREATE DATABASE skypulse_monitoring_system_database;
--- \c skypulse_monitoring_system_database;
 
 -- EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; --UUID generation
@@ -72,7 +70,7 @@ CREATE TABLE users (
     user_email     VARCHAR(60) UNIQUE NOT NULL,
 
     password_hash  TEXT NOT NULL,
-    role_id        BIGINT,
+    role_id        INTEGER,
     last_login_at  TIMESTAMP,   -- updated on successful login
     last_seen_at   TIMESTAMP,   -- updated on every API hit or dashboard view
     last_ip        VARCHAR(64),

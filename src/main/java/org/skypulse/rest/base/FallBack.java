@@ -1,4 +1,4 @@
-package org.skypulse.config.base;
+package org.skypulse.rest.base;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
