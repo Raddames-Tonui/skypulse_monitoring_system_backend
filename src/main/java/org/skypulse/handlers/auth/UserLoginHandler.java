@@ -3,6 +3,8 @@ package org.skypulse.handlers.auth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.Cookie;
+import io.undertow.server.handlers.CookieImpl;
 import org.skypulse.handlers.auth.dto.UserLoginRequest;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.JsonUtil;
@@ -21,7 +23,7 @@ public class UserLoginHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
     private static final long ACCESS_TOKEN_TTL = 3600L;
-    private static final long REFRESH_TOKEN_TTL = 30L * 24L * 3600L;
+    private static final long REFRESH_TOKEN_TTL = 30L * 24L * 3600L; // 30 days
     private final ObjectMapper mapper = JsonUtil.mapper();
 
     @Override
@@ -40,6 +42,7 @@ public class UserLoginHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
+            // 1. Fetch user
             String selectUser = """
                 SELECT user_id, uuid, password_hash, first_name, last_name, user_email, is_deleted, role_id
                 FROM users
@@ -82,13 +85,13 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            //  verify password
+            // 2. Verify password
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
                 ResponseUtil.sendError(exchange, 401, "Invalid credentials");
                 return;
             }
 
-            //  collect role name & permissions
+            // 3. Collect role name & permissions
             String roleName = null;
             Map<String, List<String>> formattedPermissions = new LinkedHashMap<>();
             if (roleId != null) {
@@ -122,7 +125,7 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // create refresh token and auth_sessions row (store refresh hash, generate jwt_id)
+            // 4. Generate refresh token and insert into auth_sessions
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
             Instant now = Instant.now();
@@ -132,12 +135,10 @@ public class UserLoginHandler implements HttpHandler {
                 INSERT INTO auth_sessions
                 (user_id, refresh_token_hash, jwt_id, issued_at, expires_at, ip_address, user_agent, device_name)
                 VALUES (?, ?, uuid_generate_v4(), ?, ?, ?, ?, ?)
-                RETURNING jwt_id, auth_session_id
+                RETURNING jwt_id
             """;
 
             UUID jwtId;
-            UUID authSessionId;
-
             try (PreparedStatement ps = conn.prepareStatement(insertAuth)) {
                 ps.setLong(1, userId);
                 ps.setString(2, refreshHash);
@@ -148,15 +149,12 @@ public class UserLoginHandler implements HttpHandler {
                 ps.setString(7, deviceName);
 
                 try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) {
-                        throw new SQLException("Failed to create auth_session");
-                    }
+                    if (!rs.next()) throw new SQLException("Failed to create auth_session");
                     jwtId = (UUID) rs.getObject("jwt_id");
-                    authSessionId = (UUID) rs.getObject("auth_session_id");
                 }
             }
 
-            //  generate JWT using the jwtId as jti and userUuid as subject
+            // 5. Generate JWT access token
             String accessToken = JwtUtil.generateAccessTokenWithJti(
                     userUuid.toString(),
                     email,
@@ -165,7 +163,7 @@ public class UserLoginHandler implements HttpHandler {
                     jwtId
             );
 
-            // update last_login_at
+            // 6. Update last_login_at
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE users SET last_login_at = ? WHERE user_id = ?")) {
                 ps.setTimestamp(1, Timestamp.from(now));
@@ -173,17 +171,24 @@ public class UserLoginHandler implements HttpHandler {
                 ps.executeUpdate();
             }
 
-            // build response
+            // 7. Set refresh token as Secure HttpOnly cookie
+            CookieImpl cookie = new CookieImpl("refreshToken", refreshToken);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true); // only send over HTTPS
+            cookie.setPath("/");     // cookie valid site-wide
+            cookie.setMaxAge((int) REFRESH_TOKEN_TTL);
+            exchange.setResponseCookie(cookie);
+
+            // 8. Build response without refresh token
             Map<String, Object> userData = new HashMap<>();
             userData.put("uuid", userUuid);
-            userData.put("fullName", firstName +  lastName);
+            userData.put("fullName", firstName + " " + lastName);
             userData.put("email", email);
             userData.put("role", roleName);
             userData.put("permissions", formattedPermissions);
 
             Map<String, Object> data = new HashMap<>();
             data.put("accessToken", accessToken);
-            data.put("refreshToken", refreshToken);
             data.put("expiresIn", ACCESS_TOKEN_TTL);
             data.put("user", userData);
 

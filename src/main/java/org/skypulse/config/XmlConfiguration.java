@@ -6,6 +6,7 @@ import jakarta.xml.bind.annotation.XmlRootElement;
 public class XmlConfiguration {
 
     public Server server;
+    public JwtConfig jwt;
     public DataSource dataSource;
     public ConnectionPool connectionPool;
     public Logging logging;
@@ -19,6 +20,11 @@ public class XmlConfiguration {
         public int ioThreads;
         public int workerThreads;
         public String basePath;
+    }
+    @XmlRootElement(name = "jwtConfig")
+    public static class JwtConfig {
+        public String accessTokenTTL;
+        public String refreshTokenTTL;
     }
 
     // --- Data Source ---

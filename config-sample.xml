@@ -9,6 +9,12 @@
         <basePath mode="TEXT"> /api/rest</basePath>
     </server>
 
+    <!-- JWT-CONFIGURATION   -->
+    <jwtConfig>
+        <accessTokenTTL>3600L</accessTokenTTL>
+        <refreshTokenTTL>2592000</refreshTokenTTL>
+    </jwtConfig>
+
     <!-- PostgresSQL Data Source Configuration -->
     <dataSource>
         <driverClassName mode="TEXT">org.postgresql.Driver</driverClassName>
