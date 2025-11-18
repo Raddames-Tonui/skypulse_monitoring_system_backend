@@ -107,3 +107,60 @@ org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique co
 	at org.jboss.threads.EnhancedQueueExecutor$ThreadBody.run(EnhancedQueueExecutor.java:1615)
 	at org.xnio.XnioWorker$WorkerThreadFactory$1$1.run(XnioWorker.java:1282)
 	at java.base/java.lang.Thread.run(Thread.java:1474)
+2025-11-18 14:42:10.947 [XNIO-1 task-2] ERROR o.s.h.c.CreateContactGroupHandler - Failed to create contact group 'Backend Team': ERROR: duplicate key value violates unique constraint "contact_groups_contact_group_name_key"
+  Detail: Key (contact_group_name)=(Backend Team) already exists.
+org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "contact_groups_contact_group_name_key"
+  Detail: Key (contact_group_name)=(Backend Team) already exists.
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2733)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2420)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:372)
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:517)
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:434)
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:194)
+	at org.postgresql.jdbc.PgPreparedStatement.executeQuery(PgPreparedStatement.java:137)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeQuery(ProxyPreparedStatement.java:52)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeQuery(HikariProxyPreparedStatement.java)
+	at org.skypulse.handlers.contacts.CreateContactGroupHandler.handleRequest(CreateContactGroupHandler.java:73)
+	at org.skypulse.utils.security.AuthMiddleware.handleRequest(AuthMiddleware.java:133)
+	at io.undertow.server.handlers.BlockingHandler.handleRequest(BlockingHandler.java:56)
+	at io.undertow.server.Connectors.executeRootHandler(Connectors.java:395)
+	at io.undertow.server.HttpServerExchange$1.run(HttpServerExchange.java:900)
+	at org.jboss.threads.ContextHandler$1.runWith(ContextHandler.java:18)
+	at org.jboss.threads.EnhancedQueueExecutor$Task.doRunWith(EnhancedQueueExecutor.java:2691)
+	at org.jboss.threads.EnhancedQueueExecutor$Task.run(EnhancedQueueExecutor.java:2670)
+	at org.jboss.threads.EnhancedQueueExecutor$ThreadBody.run(EnhancedQueueExecutor.java:1589)
+	at org.xnio.XnioWorker$WorkerThreadFactory$1$1.run(XnioWorker.java:1282)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+2025-11-18 14:44:50.694 [XNIO-1 task-2] ERROR o.s.h.c.AddMembersToGroupHandler - Failed to add members to group 2: Batch entry 1     INSERT INTO contact_group_members (contact_group_id, user_id, is_primary)
+    VALUES (('2'::int8), ('6'::int8), FALSE)
+    ON CONFLICT (contact_group_id, user_id) DO NOTHING was aborted: ERROR: insert or update on table "contact_group_members" violates foreign key constraint "contact_group_members_user_id_fkey"
+  Detail: Key (user_id)=(6) is not present in table "users".  Call getNextException to see other errors in the batch.
+java.sql.BatchUpdateException: Batch entry 1     INSERT INTO contact_group_members (contact_group_id, user_id, is_primary)
+    VALUES (('2'::int8), ('6'::int8), FALSE)
+    ON CONFLICT (contact_group_id, user_id) DO NOTHING was aborted: ERROR: insert or update on table "contact_group_members" violates foreign key constraint "contact_group_members_user_id_fkey"
+  Detail: Key (user_id)=(6) is not present in table "users".  Call getNextException to see other errors in the batch.
+	at org.postgresql.jdbc.BatchResultHandler.handleError(BatchResultHandler.java:165)
+	at org.postgresql.core.ResultHandlerDelegate.handleError(ResultHandlerDelegate.java:52)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2421)
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:580)
+	at org.postgresql.jdbc.PgStatement.internalExecuteBatch(PgStatement.java:888)
+	at org.postgresql.jdbc.PgStatement.executeBatch(PgStatement.java:912)
+	at org.postgresql.jdbc.PgPreparedStatement.executeBatch(PgPreparedStatement.java:1739)
+	at com.zaxxer.hikari.pool.ProxyStatement.executeBatch(ProxyStatement.java:127)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeBatch(HikariProxyPreparedStatement.java)
+	at org.skypulse.handlers.contacts.AddMembersToGroupHandler.handleRequest(AddMembersToGroupHandler.java:57)
+	at org.skypulse.utils.security.AuthMiddleware.handleRequest(AuthMiddleware.java:133)
+	at io.undertow.server.handlers.BlockingHandler.handleRequest(BlockingHandler.java:56)
+	at io.undertow.server.Connectors.executeRootHandler(Connectors.java:395)
+	at io.undertow.server.HttpServerExchange$1.run(HttpServerExchange.java:900)
+	at org.jboss.threads.ContextHandler$1.runWith(ContextHandler.java:18)
+	at org.jboss.threads.EnhancedQueueExecutor$Task.doRunWith(EnhancedQueueExecutor.java:2691)
+	at org.jboss.threads.EnhancedQueueExecutor$Task.run(EnhancedQueueExecutor.java:2670)
+	at org.jboss.threads.EnhancedQueueExecutor$ThreadBody.run(EnhancedQueueExecutor.java:1615)
+	at org.xnio.XnioWorker$WorkerThreadFactory$1$1.run(XnioWorker.java:1282)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: org.postgresql.util.PSQLException: ERROR: insert or update on table "contact_group_members" violates foreign key constraint "contact_group_members_user_id_fkey"
+  Detail: Key (user_id)=(6) is not present in table "users".
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2733)
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2420)
+	... 17 common frames omitted

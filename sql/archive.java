@@ -1,36 +1,48 @@
-public void handleRequest(HttpServerExchange exchange) throws Exception {
-    Map<String, Object> body = HttpRequestUtil.parseJson(exchange);
-    if (body == null) return;
+package org.skypulse.utils;
 
-    Long groupId = HttpRequestUtil.getLong(body, "contact_group_id");
-    var members = (List<Integer>) body.get("members_ids");
+import org.skypulse.config.database.DatabaseManager;
 
-    if (groupId == null || members == null || members.isEmpty()) {
-        ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing fields");
-        return;
+import javax.sql.DataSource;
+import java.sql.*;
+import java.util.function.Consumer;
+
+public final class DbUtil {
+
+    private DbUtil() {}
+
+    public static <T> T querySingle(String sql, SqlConsumer<PreparedStatement> paramSetter, SqlFunction<ResultSet, T> resultMapper) throws SQLException {
+        try (Connection conn = DatabaseManager.getDataSource().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            paramSetter.accept(ps);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? resultMapper.apply(rs) : null;
+            }
+        }
     }
 
-    try (Connection conn = DatabaseManager.getDataSource().getConnection()) {
-        conn.setAutoCommit(false);
-
-        PreparedStatement ps = conn.prepareStatement("""
-            INSERT INTO contact_group_members (contact_group_id, user_id, is_primary)
-            VALUES (?, ?, FALSE)
-            ON CONFLICT (contact_group_id, user_id) DO NOTHING;
-        """);
-
-        for (Integer id : members) {
-            ps.setLong(1, groupId);
-            ps.setInt(2, id);
-            ps.addBatch();
+    public static int update(String sql, SqlConsumer<PreparedStatement> paramSetter) throws SQLException {
+        try (Connection conn = DatabaseManager.getDataSource().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            paramSetter.accept(ps);
+            return ps.executeUpdate();
         }
+    }
 
-        ps.executeBatch();
-        conn.commit();
+    public static void batch(String sql, SqlConsumer<PreparedStatement> batchSetter) throws SQLException {
+        try (Connection conn = DatabaseManager.getDataSource().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            batchSetter.accept(ps);
+            ps.executeBatch();
+        }
+    }
 
-        ResponseUtil.sendSuccess(exchange, "Members added", null);
+    @FunctionalInterface
+    public interface SqlConsumer<T> {
+        void accept(T t) throws SQLException;
+    }
 
-    } catch (Exception e) {
-        ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, e.getMessage());
+    @FunctionalInterface
+    public interface SqlFunction<T, R> {
+        R apply(T t) throws SQLException;
     }
 }
