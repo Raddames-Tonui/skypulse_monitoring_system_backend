@@ -4,7 +4,6 @@ import org.skypulse.config.ConfigLoader;
 import org.skypulse.config.XmlConfiguration;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.TaskScheduler;
-import org.skypulse.config.utils.LogContext;
 import org.skypulse.rest.RestApiServer;
 import org.skypulse.utils.security.CryptoInit;
 import org.slf4j.Logger;

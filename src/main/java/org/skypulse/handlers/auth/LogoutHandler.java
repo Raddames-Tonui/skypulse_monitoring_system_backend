@@ -16,6 +16,10 @@ import java.sql.ResultSet;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Logout by refresh token. Preferred behavior: mark the auth_sessions row revoked (do not delete),
+ * and update the audit session row.
+ */
 public class LogoutHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(LogoutHandler.class);
@@ -23,9 +27,7 @@ public class LogoutHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-
         Map<String, Object> body = mapper.readValue(exchange.getInputStream(), Map.class);
-
         String refreshToken = (String) body.get("refreshToken");
 
         if (refreshToken == null || refreshToken.isBlank()) {
@@ -37,53 +39,49 @@ public class LogoutHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            String findSql = "SELECT user_id, auth_session_id FROM auth_sessions WHERE refresh_token_hash = ?";
+            String findSql = "SELECT user_id, auth_session_id, is_revoked FROM auth_sessions WHERE refresh_token_hash = ?";
             Long userId = null;
             String sessionId = null;
+            boolean alreadyRevoked = false;
 
             try (PreparedStatement ps = conn.prepareStatement(findSql)) {
                 ps.setString(1, refreshTokenHash);
-
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         userId = rs.getLong("user_id");
                         sessionId = rs.getString("auth_session_id");
+                        alreadyRevoked = rs.getBoolean("is_revoked");
                     }
                 }
             }
 
-            //  DELETE the refresh token session
-            String deleteSql = "DELETE FROM auth_sessions WHERE refresh_token_hash = ?";
-
-            int deleted;
-            try (PreparedStatement ps = conn.prepareStatement(deleteSql)) {
-                ps.setString(1, refreshTokenHash);
-                deleted = ps.executeUpdate();
-            }
-
-            if (deleted == 0) {
+            if (userId == null || sessionId == null) {
                 ResponseUtil.sendSuccess(exchange, "Already logged out", null);
                 return;
             }
 
-            if (userId != null && sessionId != null) {
-                String auditSql = """
-                    UPDATE user_audit_session
-                    SET logout_time = NOW(), 
-                        session_status = 'revoked',
-                        date_modified = NOW()
-                    WHERE user_id = ? 
-                      AND session_token = ?
-                      AND session_status = 'active'
-                """;
+            if (!alreadyRevoked) {
+                String revokeSql = "UPDATE auth_sessions SET is_revoked = TRUE, revoked_at = NOW(), date_modified = NOW() WHERE refresh_token_hash = ?";
 
-                try (PreparedStatement ps = conn.prepareStatement(auditSql)) {
-                    ps.setLong(1, userId);
-                    ps.setString(2, sessionId);
+                try (PreparedStatement ps = conn.prepareStatement(revokeSql)) {
+                    ps.setString(1, refreshTokenHash);
                     ps.executeUpdate();
                 }
             }
 
+            String auditSql = """
+                UPDATE user_audit_session
+                SET logout_time = NOW(),
+                    session_status = 'revoked',
+                    date_modified = NOW()
+                WHERE user_id = ? AND session_token = ? AND session_status = 'active'
+            """;
+
+            try (PreparedStatement ps = conn.prepareStatement(auditSql)) {
+                ps.setLong(1, userId);
+                ps.setString(2, sessionId);
+                ps.executeUpdate();
+            }
 
             ResponseUtil.sendSuccess(exchange, "Logged out successfully", null);
 

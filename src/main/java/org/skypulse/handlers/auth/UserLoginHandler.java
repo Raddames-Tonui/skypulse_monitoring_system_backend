@@ -26,7 +26,6 @@ public class UserLoginHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-
         UserLoginRequest req = mapper.readValue(exchange.getInputStream(), UserLoginRequest.class);
 
         if (req.userEmail == null || req.userEmail.isBlank() ||
@@ -35,80 +34,72 @@ public class UserLoginHandler implements HttpHandler {
             return;
         }
 
-        String ipAddress = exchange.getSourceAddress() != null
-                ? exchange.getSourceAddress().getHostString()
-                : "unknown";
-
+        String ipAddress = exchange.getSourceAddress() != null ? exchange.getSourceAddress().getHostString() : "unknown";
         String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
         String deviceName = (req.deviceName == null || req.deviceName.isBlank()) ? "unknown" : req.deviceName;
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // 1. Fetch user
             String selectUser = """
-                SELECT u.user_id, u.uuid, u.password_hash, u.first_name, u.last_name,
-                       u.user_email, u.is_deleted, r.role_name, u.role_id
-                FROM users u
-                LEFT JOIN roles r ON u.role_id = r.role_id
-                WHERE u.user_email = ?
+                SELECT user_id, uuid, password_hash, first_name, last_name, user_email, is_deleted, role_id
+                FROM users
+                WHERE user_email = ?
             """;
 
             Long userId = null;
-            UUID userUUID = null;
+            UUID userUuid = null;
             String passwordHash = null;
-            String userEmail = null;
+            String email = null;
             String firstName = null;
             String lastName = null;
-            String roleName = null;
             Integer roleId = null;
-            boolean isDeleted = false;
 
             try (PreparedStatement ps = conn.prepareStatement(selectUser)) {
                 ps.setString(1, req.userEmail);
                 try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        userId = rs.getLong("user_id");
-
-                        Object uuidObj = rs.getObject("uuid");
-                        if (uuidObj == null) {
-                            logger.error("User id={} has NULL uuid in DB!", userId);
-                            ResponseUtil.sendError(exchange, 500, "Account error — missing UUID");
-                            return;
-                        }
-
-                        userUUID = UUID.fromString(uuidObj.toString());
-                        passwordHash = rs.getString("password_hash");
-                        userEmail = rs.getString("user_email");
-                        firstName = rs.getString("first_name");
-                        lastName = rs.getString("last_name");
-                        roleName = rs.getString("role_name");
-
-                        int roleValue = rs.getInt("role_id");
-                        roleId = rs.wasNull() ? null : roleValue;
-                        isDeleted = rs.getBoolean("is_deleted");
-
-                        if (isDeleted) {
-                            ResponseUtil.sendError(exchange, 403, "User is deleted. Contact administrator.");
-                            return;
-                        }
-
-                    } else {
+                    if (!rs.next()) {
                         ResponseUtil.sendError(exchange, 401, "Invalid credentials");
+                        return;
+                    }
+                    userId = rs.getLong("user_id");
+                    Object uuidObj = rs.getObject("uuid");
+                    if (uuidObj == null) {
+                        logger.error("User id={} has NULL uuid", userId);
+                        ResponseUtil.sendError(exchange, 500, "Account error — missing UUID");
+                        return;
+                    }
+                    userUuid = UUID.fromString(uuidObj.toString());
+                    passwordHash = rs.getString("password_hash");
+                    email = rs.getString("user_email");
+                    firstName = rs.getString("first_name");
+                    lastName = rs.getString("last_name");
+                    roleId = rs.getObject("role_id") == null ? null : rs.getInt("role_id");
+
+                    if (rs.getBoolean("is_deleted")) {
+                        ResponseUtil.sendError(exchange, 403, "User is deleted. Contact administrator.");
                         return;
                     }
                 }
             }
 
-            // 2. Validate password
+            //  verify password
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
                 ResponseUtil.sendError(exchange, 401, "Invalid credentials");
                 return;
             }
 
-            // 3. Fetch permissions
+            //  collect role name & permissions
+            String roleName = null;
             Map<String, List<String>> formattedPermissions = new LinkedHashMap<>();
+            if (roleId != null) {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT role_name FROM roles WHERE role_id = ?")) {
+                    ps.setInt(1, roleId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) roleName = rs.getString("role_name");
+                    }
+                }
 
-            if (roleId != null && roleId > 0) {
                 String permSql = """
                     SELECT p.permission_code, rp.can_view, rp.can_create, rp.can_update, rp.can_delete
                     FROM role_permissions rp
@@ -131,7 +122,7 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // 4. Create refresh token & auth_session record
+            // create refresh token and auth_sessions row (store refresh hash, generate jwt_id)
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
             Instant now = Instant.now();
@@ -141,10 +132,11 @@ public class UserLoginHandler implements HttpHandler {
                 INSERT INTO auth_sessions
                 (user_id, refresh_token_hash, jwt_id, issued_at, expires_at, ip_address, user_agent, device_name)
                 VALUES (?, ?, uuid_generate_v4(), ?, ?, ?, ?, ?)
-                RETURNING jwt_id
+                RETURNING jwt_id, auth_session_id
             """;
 
             UUID jwtId;
+            UUID authSessionId;
 
             try (PreparedStatement ps = conn.prepareStatement(insertAuth)) {
                 ps.setLong(1, userId);
@@ -157,22 +149,23 @@ public class UserLoginHandler implements HttpHandler {
 
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
-                        throw new SQLException("Failed to retrieve generated JWT ID from auth_sessions");
+                        throw new SQLException("Failed to create auth_session");
                     }
                     jwtId = (UUID) rs.getObject("jwt_id");
+                    authSessionId = (UUID) rs.getObject("auth_session_id");
                 }
             }
 
-            // 5. Generate access token (ALWAYS use userUUID)
+            //  generate JWT using the jwtId as jti and userUuid as subject
             String accessToken = JwtUtil.generateAccessTokenWithJti(
-                    userUUID.toString(),     // ✔ ALWAYS UUID
-                    userEmail,
+                    userUuid.toString(),
+                    email,
                     roleName,
                     ACCESS_TOKEN_TTL,
                     jwtId
             );
 
-            // 6. Update last login
+            // update last_login_at
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE users SET last_login_at = ? WHERE user_id = ?")) {
                 ps.setTimestamp(1, Timestamp.from(now));
@@ -180,12 +173,11 @@ public class UserLoginHandler implements HttpHandler {
                 ps.executeUpdate();
             }
 
-            // 7. Build response
+            // build response
             Map<String, Object> userData = new HashMap<>();
-            userData.put("uuid", userUUID);
-            userData.put("firstName", firstName);
-            userData.put("lastName", lastName);
-            userData.put("email", userEmail);
+            userData.put("uuid", userUuid);
+            userData.put("fullName", firstName +  lastName);
+            userData.put("email", email);
             userData.put("role", roleName);
             userData.put("permissions", formattedPermissions);
 
@@ -198,10 +190,10 @@ public class UserLoginHandler implements HttpHandler {
             ResponseUtil.sendSuccess(exchange, "Login successful", data);
 
         } catch (SQLException sqle) {
-            logger.error("SQL error: ", sqle);
+            logger.error("SQL error during login", sqle);
             ResponseUtil.sendError(exchange, 500, "Internal Server Error");
         } catch (Exception e) {
-            logger.error("Error: {}", e.getMessage(), e);
+            logger.error("Error during login", e);
             ResponseUtil.sendError(exchange, 500, "Internal Server Error");
         }
     }
