@@ -62,7 +62,8 @@ public class RestApiServer {
 
             PathHandler pathHandler = Handlers.path()
                     .addPrefixPath(BASE_REST_API_URL+"/health", rootHandler)
-                    .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth());
+                    .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth())
+                    .addPrefixPath(BASE_REST_API_URL + "/contact",  Routes.contactGroups());
 
 
             Undertow server = Undertow.builder()

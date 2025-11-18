@@ -1,29 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <!--  PRODUCTION LOGBACK    -->
-
-    <!-- Console output -->
+    <!-- CONSOLE OUTPUT -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg [component=%X{component}, trace=%X{trace.id}]%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Rolling file output (main logs) -->
+    <!-- ROLLING FILE OUTPUT -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>tmp/logs/skypulse.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <!-- Keep one log file per day, max 7 days -->
             <fileNamePattern>logs/skypulse-%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg [component=%X{component}, trace=%X{trace.id}]%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Dedicated error log file -->
+    <!-- ERROR FILE (ERROR ONLY) -->
     <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>tmp/logs/errors.log</file>
         <filter class="ch.qos.logback.classic.filter.LevelFilter">
@@ -36,11 +33,11 @@
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg [component=%X{component}, trace=%X{trace.id}]%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Async wrapper to improve performance under heavy load -->
+    <!-- ASYNC WRAPPER -->
     <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
         <queueSize>1024</queueSize>
         <discardingThreshold>0</discardingThreshold>
@@ -48,32 +45,16 @@
         <appender-ref ref="FILE"/>
     </appender>
 
-
-    <!--   LOGGING CONFIGURATION   -->
-
-    <!-- Root logger: main entry point -->
+    <!-- ROOT LOGGER -->
     <root level="INFO">
         <appender-ref ref="ASYNC"/>
         <appender-ref ref="ERROR_FILE"/>
     </root>
 
-    <!-- Library- and module-specific tuning -->
+    <!-- MODULE LOG LEVELS -->
     <logger name="io.undertow" level="WARN"/>
     <logger name="com.zaxxer.hikari" level="INFO"/>
     <logger name="org.skypulse.utils.security.KeyProvider" level="INFO"/>
     <logger name="org.skypulse" level="DEBUG"/>
 
-    <!--
-        | SYMBOL GUIDE |
-        | Symbol        | Meaning                                           |
-        | %d{…}         | Timestamp                                         |
-        | [%thread]     | Thread name (useful for async apps)               |
-        | %-5level      | Log level, left-aligned (INFO, WARN, ERROR, etc.) |
-        | %logger{36}   | Logger name, shortened to 36 characters           |
-        | %msg           | Actual log message                                |
-        | %n             | Newline                                           |
-
-        Example log line:
-        2025-10-23 18:40:22.314 [main] INFO  org.skypulse - Server started on port 8080
-    -->
 </configuration>

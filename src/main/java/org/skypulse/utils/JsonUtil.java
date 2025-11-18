@@ -13,3 +13,16 @@ public class JsonUtil {
         return MAPPER;
     }
 }
+
+
+
+/**
+ * Replace: Map<String, Object> body = JsonUtil.mapper().readValue(is, Map.class);
+ * with
+ * Map<String, Object> body =
+ *         JsonUtil.mapper().readValue(is, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+ * to remove:
+ *    -  unchecked assignment warnings
+ *     - raw type warnings
+ *      - IDE yellow highlights
+ * **/

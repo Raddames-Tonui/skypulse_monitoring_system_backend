@@ -23,7 +23,6 @@ public class Main {
 
         try {
             logger.info("Starting SkyPulse System...");
-
             CryptoInit.init();
 
             String configPath = (args.length > 0) ? args[0] : "config.xml";

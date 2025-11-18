@@ -21,7 +21,6 @@ public class UserSignupHandler implements HttpHandler {
     public void handleRequest(HttpServerExchange exchange) throws Exception {
         try (InputStream is = exchange.getInputStream()) {
             Map<String, Object> body = JsonUtil.mapper().readValue(is, Map.class);
-//            System.out.println(body);
 
             String firstName = (body.get("first_name") != null) ? body.get("first_name").toString() : null;
             String lastName  = (body.get("last_name") != null) ? body.get("last_name").toString() : null;
