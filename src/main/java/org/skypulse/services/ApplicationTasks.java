@@ -2,6 +2,7 @@ package org.skypulse.services;
 
 import org.skypulse.Main;
 import org.skypulse.services.tasks.EventQueueProcessorTask;
+import org.skypulse.services.tasks.SslExpiryMonitorTask;
 import org.skypulse.services.tasks.UptimeCheckTask;
 import org.skypulse.utils.JdbcUtils;
 import org.slf4j.Logger;
@@ -66,6 +67,7 @@ public class ApplicationTasks {
     public static void activateDbBackedTasks() {
         logger.info("Activating DB-backed tasks...");
         appScheduler.register(new EventQueueProcessorTask());
+        appScheduler.register(new SslExpiryMonitorTask());
 //        appScheduler.register(new NotificationDispatchTask());
         logger.info("DB-backed tasks activated.");
     }

@@ -406,7 +406,7 @@ CREATE TRIGGER trg_monitored_services_touch_modified
 BEFORE UPDATE ON monitored_services
 FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
--- High-volume logs (internal): no UUID
+-- High-volume logs
 CREATE TABLE uptime_logs (
   uptime_log_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   monitored_service_id BIGINT NOT NULL,
@@ -425,7 +425,7 @@ CREATE TABLE uptime_logs (
 CREATE INDEX index_uptime_logs_service_id_checked_at_status
 ON uptime_logs(monitored_service_id, checked_at, status);
 
--- SSL logs
+-- SSL logs: Check on the ssl and log them
 CREATE TABLE ssl_logs (
   ssl_log_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   monitored_service_id BIGINT NOT NULL,
@@ -437,8 +437,25 @@ CREATE TABLE ssl_logs (
   date_created    TIMESTAMP DEFAULT NOW(),
   date_modified   TIMESTAMP DEFAULT NOW(),
   CONSTRAINT fk_monitored_services_ssl_logs
-    FOREIGN KEY (monitored_service_id) REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE
+    FOREIGN KEY (monitored_service_id) REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE,
+
+  CONSTRAINT uniq_ssl_ms_domain UNIQUE (monitored_service_id, domain)
 );
+
+-- SSL that have been notified
+CREATE TABLE ssl_alerts (
+    ssl_alert_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    monitored_service_id BIGINT NOT NULL,
+    days_remaining INTEGER NOT NULL,
+    sent_at TIMESTAMP DEFAULT NOW(),
+
+    CONSTRAINT uniq_ssl_alert UNIQUE (monitored_service_id, days_remaining),
+    CONSTRAINT fk_monitored_services_ssl_alerts
+        FOREIGN KEY (monitored_service_id)
+        REFERENCES monitored_services(monitored_service_id)
+        ON DELETE CASCADE
+);
+
 
 -- Incident tickets
 CREATE TABLE incidents (

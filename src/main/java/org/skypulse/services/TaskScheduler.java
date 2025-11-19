@@ -22,7 +22,9 @@ public class TaskScheduler {
     private final List<ScheduledFuture<?>> futures = new ArrayList<>();
     private final List<ScheduledTask> tasks = new ArrayList<>();
 
-    public TaskScheduler() { this(10); } // default pool 10
+    public TaskScheduler() {
+        this(10);
+    }
     public TaskScheduler(int poolSize) {
         this.executor = new ScheduledThreadPoolExecutor(poolSize);
         this.executor.setRemoveOnCancelPolicy(true);
@@ -86,7 +88,7 @@ public class TaskScheduler {
     /**
      * Stop all tasks and shutdown executor.
      */
-    public void stop() {
+    public void shutdown() {
         logger.info("Shutting down TaskScheduler...");
         for (ScheduledFuture<?> f : futures) f.cancel(true);
         executor.shutdownNow();

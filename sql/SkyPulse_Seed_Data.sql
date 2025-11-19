@@ -95,7 +95,7 @@ INSERT INTO monitored_services (monitored_service_name, monitored_service_url, m
 SELECT 'Main Website','https://skywatch.com','default', 5, 3, TRUE, u.user_id
 FROM users u WHERE u.user_email='admin@skywatch.com'
 UNION ALL
-SELECT 'API Gateway','https://api.skywatch.com/health','default', 2, 3, TRUE, u.user_id
+SELECT 'Trainee DOJO','https://the-dojo.pagoda.africa/api','default', 2, 3, TRUE, u.user_id
 FROM users u WHERE u.user_email='ops@skywatch.com'
 UNION ALL
 SELECT 'To do Website','https://taddaaaaaa.netlify.app','default', 10, 2, TRUE, u.user_id

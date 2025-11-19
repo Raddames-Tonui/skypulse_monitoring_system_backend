@@ -46,7 +46,7 @@ public class UptimeCheckTask implements ScheduledTask {
 
     @Override
     public String name() {
-        return "UptimeCheckTask-" + serviceId;
+        return "[ UptimeCheckTask ]" + serviceId;
     }
 
     @Override
@@ -110,8 +110,8 @@ public class UptimeCheckTask implements ScheduledTask {
             createEvent(c, oldStatus, status, errorMessage);
         }
 
-        logger.info("Service '{}' checked: status={}, responseTime={}ms, httpCode={}, error={}",
-                serviceName, status, responseTime, httpCode, errorMessage);
+        logger.info("Service '{}' [{}] checked: status={}, responseTime={}ms, httpCode={}, error={}",
+                serviceName, serviceUrl, status, responseTime, httpCode, errorMessage);
     }
 
     private String getPreviousStatus(Connection c) throws SQLException {

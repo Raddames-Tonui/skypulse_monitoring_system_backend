@@ -2,19 +2,13 @@ package org.skypulse;
 
 import org.skypulse.config.ConfigLoader;
 import org.skypulse.config.XmlConfiguration;
-import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.DBTaskScheduler;
-import org.skypulse.services.TaskScheduler;
-import org.skypulse.services.tasks.*;
+import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.utils.LogContext;
 import org.skypulse.rest.RestApiServer;
-import org.skypulse.utils.JdbcUtils;
+import org.skypulse.services.TaskScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 
 import static org.skypulse.services.ApplicationTasks.activateDbBackedTasks;
 import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
@@ -30,7 +24,7 @@ import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    public static final TaskScheduler appScheduler = new TaskScheduler(5); // 5 threads
+    public static final TaskScheduler appScheduler = new TaskScheduler(10); // 5 threads
 
     public static void main(String[] args) {
         LogContext.start("Main");
@@ -59,22 +53,20 @@ public class Main {
             appScheduler.start();
 
 
-            // --- Schedule background DB reconnection if DB is offline ---
             if (!dbAvailable) {
                 logger.info("Starting background DB reconnection monitor...");
                 DBTaskScheduler.scheduleReconnect(() -> {
                     try {
                         DatabaseManager.initialize(cfg);
                         logger.info("Database reconnected successfully.");
-                        // Once DB is back, activate DB-backed tasks
-                        activateDbBackedTasks();
+                        activateDbBackedTasks(); // restart services
                     } catch (Exception ignored) {}
                 });
             }
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 logger.info("Shutdown initiated...");
-                appScheduler.stop();
+                appScheduler.shutdown();
                 DBTaskScheduler.shutdown();
                 DatabaseManager.shutdown();
                 logger.info("SkyPulse System shutdown complete.");
@@ -87,6 +79,4 @@ public class Main {
             LogContext.clear();
         }
     }
-
-
 }
