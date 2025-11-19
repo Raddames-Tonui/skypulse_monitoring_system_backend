@@ -98,7 +98,7 @@ UNION ALL
 SELECT 'API Gateway','https://api.skywatch.com/health','default', 2, 3, TRUE, u.user_id
 FROM users u WHERE u.user_email='ops@skywatch.com'
 UNION ALL
-SELECT 'Client Portal','https://portal.skywatch.com','default', 10, 2, TRUE, u.user_id
+SELECT 'To do Website','https://taddaaaaaa.netlify.app','default', 10, 2, TRUE, u.user_id
 FROM users u WHERE u.user_email='admin@skywatch.com'
 ON CONFLICT DO NOTHING;
 
@@ -117,11 +117,7 @@ JOIN contact_groups cg ON cg.contact_group_name='Developers'
 WHERE s.monitored_service_name='Client Portal'
 ON CONFLICT DO NOTHING;
 
--- UPTIME LOGS
-INSERT INTO uptime_logs (monitored_service_id, status, response_time_ms, http_status, region)
-SELECT monitored_service_id, 'UP', (100 + random()*400)::int, 200, 'default'
-FROM monitored_services
-LIMIT 5;
+
 
 -- SSL LOGS
 INSERT INTO ssl_logs (monitored_service_id, domain, issuer, expiry_date, days_remaining)

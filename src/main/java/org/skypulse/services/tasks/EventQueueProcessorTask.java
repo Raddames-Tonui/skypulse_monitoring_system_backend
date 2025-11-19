@@ -1,12 +1,11 @@
-package org.skypulse.tasks.tasks;
+package org.skypulse.services.tasks;
 
-import org.skypulse.tasks.ScheduledTask;
+import org.skypulse.services.ScheduledTask;
 import org.skypulse.utils.JdbcUtils;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.UUID;
 
 /**
  * Event processor that reads from event_outbox (instead of event_queue)

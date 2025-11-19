@@ -1,4 +1,4 @@
-package org.skypulse.tasks;
+package org.skypulse.services;
 
 public interface ScheduledTask {
     /**

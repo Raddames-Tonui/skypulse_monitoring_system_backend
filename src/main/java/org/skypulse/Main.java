@@ -4,12 +4,20 @@ import org.skypulse.config.ConfigLoader;
 import org.skypulse.config.XmlConfiguration;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.DBTaskScheduler;
-import org.skypulse.tasks.TaskScheduler;
-import org.skypulse.tasks.tasks.*;
+import org.skypulse.services.TaskScheduler;
+import org.skypulse.services.tasks.*;
 import org.skypulse.config.utils.LogContext;
 import org.skypulse.rest.RestApiServer;
+import org.skypulse.utils.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+
+import static org.skypulse.services.ApplicationTasks.activateDbBackedTasks;
+import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
 
 /**
  * SkyPulse Main Entry Point (Degraded Startup Mode)
@@ -22,8 +30,7 @@ import org.slf4j.LoggerFactory;
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    // Unified application task scheduler
-    private static final TaskScheduler appScheduler = new TaskScheduler(5); // 5 threads
+    public static final TaskScheduler appScheduler = new TaskScheduler(5); // 5 threads
 
     public static void main(String[] args) {
         LogContext.start("Main");
@@ -43,15 +50,14 @@ public class Main {
                 logger.warn("Continuing in DEGRADED MODE — database unavailable.");
             }
 
-            // Start REST API (always)
+
             logger.info("Starting Undertow server...");
             RestApiServer.startUndertow(cfg);
 
-            // --- Register application tasks ---
+            // --- Register application tasks and start ---
             registerApplicationTasks(dbAvailable);
-
-            // Start the task scheduler
             appScheduler.start();
+
 
             // --- Schedule background DB reconnection if DB is offline ---
             if (!dbAvailable) {
@@ -66,7 +72,6 @@ public class Main {
                 });
             }
 
-            // --- Shutdown hook ---
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 logger.info("Shutdown initiated...");
                 appScheduler.stop();
@@ -83,34 +88,5 @@ public class Main {
         }
     }
 
-    /**
-     * Register all application tasks (system + monitoring)
-     */
-    private static void registerApplicationTasks(boolean dbAvailable) {
-        logger.info("Registering application tasks...");
 
-        // Monitoring tasks
-        appScheduler.register(new UptimeCheckTask());
-        appScheduler.register(new SslExpiryMonitorTask());
-
-        // System / maintenance tasks
-        appScheduler.register(new DiskHealthCheckTask("/"));
-        appScheduler.register(new LogRetentionCleanupTask());
-
-        if (dbAvailable) {
-            activateDbBackedTasks();
-        }
-
-        logger.info("Application tasks registered.");
-    }
-
-    /**
-     * DB-backed tasks activated only when DB is online.
-     */
-    private static void activateDbBackedTasks() {
-        logger.info("Activating DB-backed tasks...");
-        appScheduler.register(new EventQueueProcessorTask());
-        appScheduler.register(new NotificationDispatchTask());
-        logger.info("DB-backed tasks activated.");
-    }
 }

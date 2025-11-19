@@ -1,6 +1,6 @@
-package org.skypulse.tasks.tasks;
+package org.skypulse.services.tasks;
 
-import org.skypulse.tasks.ScheduledTask;
+import org.skypulse.services.ScheduledTask;
 import org.skypulse.utils.JdbcUtils;
 import org.skypulse.utils.SystemInfo;
 

@@ -31,7 +31,7 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
 CREATE TABLE roles (
     role_id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    role_name        VARCHAR(20) UNIQUE NOT NULL,  -- e.g. admin | operator | viewer
+    role_name        VARCHAR(20) UNIQUE NOT NULL,  -- e.g. admin  operator  viewer
     role_description VARCHAR(250),
     date_created     TIMESTAMP DEFAULT NOW(),
     date_modified    TIMESTAMP DEFAULT NOW()
@@ -279,7 +279,7 @@ CREATE INDEX index_contact_group_members_group_id
 -- Global channels (Email, Telegram, SMS, Teams)
 CREATE TABLE notification_channels (
   notification_channel_id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  notification_channel_code        VARCHAR(50) UNIQUE NOT NULL, -- EMAIL | TELEGRAM | SMS
+  notification_channel_code        VARCHAR(50) UNIQUE NOT NULL, -- EMAIL  TELEGRAM  SMS
   notification_channel_name        VARCHAR(50),
   is_enabled                       BOOLEAN DEFAULT TRUE,
   date_created                     TIMESTAMP DEFAULT NOW(),
@@ -346,7 +346,7 @@ CREATE TABLE notification_history (
     recipient                   VARCHAR(255),
     subject                     TEXT,
     message                     TEXT,
-    status                      VARCHAR(20) DEFAULT 'sent', -- sent | failed | pending
+    status                      VARCHAR(20) DEFAULT 'sent', -- sent  failed  pending
     sent_at                     TIMESTAMP DEFAULT NOW(),
     error_message               TEXT,
     include_pdf                 BOOLEAN DEFAULT FALSE,
@@ -380,9 +380,9 @@ CREATE TABLE monitored_services (
   monitored_service_name VARCHAR(200) NOT NULL,   -- eg. 'mwalimu sacco', 'ndege chai'
   monitored_service_url  TEXT NOT NULL,
   monitored_service_region VARCHAR(100) DEFAULT 'default',
-  check_interval         INTEGER DEFAULT 5,  -- minutes
-  retry_count            INTEGER DEFAULT 3,
-  retry_delay            INTEGER DEFAULT 5,  -- seconds
+  check_interval         INTEGER DEFAULT 5,  -- the service is checked every _ minutes
+  retry_count            INTEGER DEFAULT 3,    -- How many attemps made b4 declaring 'DOWN'
+  retry_delay            INTEGER DEFAULT 5,  --  wait time between retry attempts when a check fails in seconds
   expected_status_code   INTEGER DEFAULT 200,
   ssl_enabled            BOOLEAN DEFAULT TRUE,
   created_by             BIGINT REFERENCES users(user_id),
@@ -449,7 +449,7 @@ CREATE TABLE incidents (
   resolved_at     TIMESTAMP,
   duration_minutes INTEGER,
   cause           TEXT,
-  status          VARCHAR(20) DEFAULT 'open', -- open | resolved
+  status          VARCHAR(20) DEFAULT 'open', -- open  resolved
   date_created    TIMESTAMP DEFAULT NOW(),
   date_modified   TIMESTAMP DEFAULT NOW(),
   CONSTRAINT fk_monitored_services_incidents
@@ -461,12 +461,12 @@ BEFORE UPDATE ON incidents
 FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
 -- Maintenance windows
-/**
-    -- Skip uptime checks for services covered by an active maintenance window.
-    -- Suppress alerts or notifications (no downtime events).
-        @service_id = 5 - Maintenance only for that specific service.
-        @service_id IS NULL - Maintenance applies to all monitored services — system-wide pause.
-*/
+--/**
+--    -- Skip uptime checks for services covered by an active maintenance window.
+--    -- Suppress alerts or notifications (no downtime events).
+--        @service_id = 5 - Maintenance only for that specific service.
+--        @service_id IS NULL - Maintenance applies to all monitored services — system-wide pause.
+--*/
 CREATE TABLE maintenance_windows (
   maintenance_window_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uuid                   UUID UNIQUE DEFAULT gen_random_uuid(),
@@ -626,6 +626,17 @@ CREATE TABLE audit_log (
 
 
 -- Default system settings done by administrator
+--/**
+-- key                        value (example)  description
+-- `default_ping_interval`    `60`             Default interval in seconds for uptime checks
+-- `default_retry_count`      `3`              Number of retries before marking DOWN
+-- `default_retry_delay`      `5`              Delay between retries in seconds
+-- `default_timeout`          `8`              HTTP request timeout in seconds
+-- `default_ssl_expiry_days`  `30`             Threshold for SSL expiry alerts
+-- `default_alert_channels`   `email,sms`      Default alert channels
+--
+--*/
+
 CREATE TABLE system_settings (
   system_setting_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   key                VARCHAR(100) UNIQUE NOT NULL,

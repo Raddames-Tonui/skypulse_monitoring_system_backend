@@ -1,6 +1,6 @@
-package org.skypulse.tasks;
+package org.skypulse.services;
 
-import org.skypulse.tasks.ScheduledTask;
+import org.skypulse.services.ScheduledTask;
 import org.skypulse.utils.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

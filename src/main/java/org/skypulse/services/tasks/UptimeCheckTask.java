@@ -2,6 +2,8 @@ package org.skypulse.services.tasks;
 
 import org.skypulse.services.ScheduledTask;
 import org.skypulse.utils.JdbcUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -13,69 +15,75 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * UptimeCheckTask:
- * - Performs HTTP/HTTPS checks for all active services.
- * - Logs results into uptime_logs.
- * - Detects state transitions and creates events in event_outbox.
- * - Supports retries and response time measurement.
+ * UptimeCheckTask: monitors a single service.
  */
 public class UptimeCheckTask implements ScheduledTask {
+    private static final Logger logger = LoggerFactory.getLogger(UptimeCheckTask.class);
+
+    private final long serviceId;
+    private final String serviceName;
+    private final String serviceUrl;
+    private final int intervalSeconds;
+    private final int retryCount;
+    private final int retryDelay;
+    private final int expectedStatusCode;
 
     private final HttpClient client = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
-    @Override
-    public String name() { return "UptimeCheckTask"; }
+    public UptimeCheckTask(long serviceId, String serviceName, String serviceUrl,
+                           int intervalMinutes, int retryCount, int retryDelay, int expectedStatusCode) {
+        this.serviceId = serviceId;
+        this.serviceName = serviceName;
+        this.serviceUrl = serviceUrl;
+        this.intervalSeconds = intervalMinutes * 60; // convert to seconds
+        this.retryCount = retryCount;
+        this.retryDelay = retryDelay;
+        this.expectedStatusCode = expectedStatusCode;
+    }
 
     @Override
-    public long intervalSeconds() { return 60; } // can be adjusted globally
+    public String name() {
+        return "UptimeCheckTask-" + serviceId;
+    }
+
+    @Override
+    public long intervalSeconds() {
+        return intervalSeconds;
+    }
 
     @Override
     public void execute() {
         try (Connection c = JdbcUtils.getConnection()) {
             c.setAutoCommit(false);
-
-            String sqlServices = "SELECT monitored_service_id, monitored_service_name, monitored_service_url, check_interval, retry_count, retry_delay, expected_status_code, ssl_enabled FROM monitored_services WHERE is_active = TRUE";
-            try (PreparedStatement ps = c.prepareStatement(sqlServices);
-                 ResultSet rs = ps.executeQuery()) {
-
-                while (rs.next()) {
-                    long serviceId = rs.getLong("monitored_service_id");
-                    String name = rs.getString("monitored_service_name");
-                    String url = rs.getString("monitored_service_url");
-                    int retries = rs.getInt("retry_count");
-                    int delay = rs.getInt("retry_delay");
-                    int expectedCode = rs.getInt("expected_status_code");
-
-                    checkService(c, serviceId, name, url, retries, delay, expectedCode);
-                }
-            }
-
+            checkService(c);
             c.commit();
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error executing uptime check for service {} ({})", serviceName, serviceId, e);
         }
     }
 
-    private void checkService(Connection c, long serviceId, String serviceName, String url, int retries, int delaySeconds, int expectedStatusCode) throws SQLException, InterruptedException {
+    private void checkService(Connection c) throws SQLException, InterruptedException {
         String status = "DOWN";
         String errorMessage = null;
         int httpCode = -1;
         long responseTime = -1;
 
-        for (int attempt = 0; attempt <= retries; attempt++) {
+        // retry loop
+        for (int attempt = 0; attempt <= retryCount; attempt++) {
             long start = System.currentTimeMillis();
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(url))
+                        .uri(URI.create(serviceUrl))
                         .timeout(java.time.Duration.ofSeconds(8))
                         .GET()
                         .build();
                 HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
                 responseTime = System.currentTimeMillis() - start;
                 httpCode = response.statusCode();
+
                 if (httpCode == expectedStatusCode || (httpCode >= 200 && httpCode < 400)) {
                     status = "UP";
                     errorMessage = null;
@@ -84,25 +92,29 @@ public class UptimeCheckTask implements ScheduledTask {
                     errorMessage = "Unexpected HTTP code: " + httpCode;
                 }
             } catch (Exception e) {
+                responseTime = System.currentTimeMillis() - start;
                 errorMessage = e.getMessage();
             }
 
-            if (attempt < retries) Thread.sleep(delaySeconds * 1000L);
+            if (attempt < retryCount) Thread.sleep(retryDelay * 1000L);
         }
 
         // fetch previous state
-        String oldStatus = getPreviousStatus(c, serviceId);
+        String oldStatus = getPreviousStatus(c);
 
         // log uptime
-        logUptime(c, serviceId, status, responseTime, httpCode, errorMessage);
+        logUptime(c, status, responseTime, httpCode, errorMessage);
 
-        // generate event if state changed
+        // create event if status changed
         if (!status.equals(oldStatus)) {
-            createEvent(c, serviceId, serviceName, oldStatus, status, errorMessage);
+            createEvent(c, oldStatus, status, errorMessage);
         }
+
+        logger.info("Service '{}' checked: status={}, responseTime={}ms, httpCode={}, error={}",
+                serviceName, status, responseTime, httpCode, errorMessage);
     }
 
-    private String getPreviousStatus(Connection c, long serviceId) throws SQLException {
+    private String getPreviousStatus(Connection c) throws SQLException {
         String sql = "SELECT status FROM uptime_logs WHERE monitored_service_id=? ORDER BY checked_at DESC LIMIT 1";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setLong(1, serviceId);
@@ -113,7 +125,7 @@ public class UptimeCheckTask implements ScheduledTask {
         return "UNKNOWN";
     }
 
-    private void logUptime(Connection c, long serviceId, String status, long responseTime, int httpCode, String errorMessage) throws SQLException {
+    private void logUptime(Connection c, String status, long responseTime, int httpCode, String errorMessage) throws SQLException {
         String sql = "INSERT INTO uptime_logs(monitored_service_id, status, response_time_ms, http_status, error_message, checked_at, date_created, date_modified) " +
                 "VALUES (?, ?, ?, ?, ?, NOW(), NOW(), NOW())";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
@@ -126,7 +138,7 @@ public class UptimeCheckTask implements ScheduledTask {
         }
     }
 
-    private void createEvent(Connection c, long serviceId, String serviceName, String oldStatus, String newStatus, String errorMessage) throws SQLException {
+    private void createEvent(Connection c, String oldStatus, String newStatus, String errorMessage) throws SQLException {
         String eventType = newStatus.equals("DOWN") ? "SERVICE_DOWN" : "SERVICE_RECOVERED";
 
         Map<String, Object> payload = new HashMap<>();
@@ -137,13 +149,14 @@ public class UptimeCheckTask implements ScheduledTask {
         payload.put("error_message", errorMessage);
         payload.put("checked_at", OffsetDateTime.now().toString());
 
-        String sql = "INSERT INTO event_outbox(event_type, payload) VALUES (?, ?::jsonb)";
+        String sql = "INSERT INTO event_outbox(event_type, payload, status, retries, created_at, updated_at) " +
+                "VALUES (?, ?::jsonb, 'PENDING', 0, NOW(), NOW())";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, eventType);
             ps.setString(2, new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(payload));
             ps.executeUpdate();
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Failed to create event for service {} ({})", serviceName, serviceId, e);
         }
     }
 }
