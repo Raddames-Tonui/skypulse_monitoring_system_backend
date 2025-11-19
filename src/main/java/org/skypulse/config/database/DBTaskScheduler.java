@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Task scheduler for background database reconnection.
  */
-public class TaskScheduler {
-    private static final Logger logger = LoggerFactory.getLogger(TaskScheduler.class);
+public class DBTaskScheduler {
+    private static final Logger logger = LoggerFactory.getLogger(DBTaskScheduler.class);
     private static final ScheduledExecutorService executor =
             Executors.newSingleThreadScheduledExecutor();
 

@@ -1,9 +1,9 @@
-docker run --name skypulse-database `
+docker run --name skypulse-ms-database `
   -e POSTGRES_USER=spadmin `
   -e POSTGRES_PASSWORD=skyp@lse!2020 `
   -e POSTGRES_DB=skypulse_monitoring_system_database `
   -v "$env:USERPROFILE\docker\skypulse_db\data:/var/lib/postgresql\data" `
-  -p 5434:5432 `
+  -p 5435:5432 `
   -d postgres:latest
 
 
