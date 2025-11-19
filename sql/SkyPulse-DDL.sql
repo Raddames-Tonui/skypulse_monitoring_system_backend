@@ -425,22 +425,30 @@ CREATE TABLE uptime_logs (
 CREATE INDEX index_uptime_logs_service_id_checked_at_status
 ON uptime_logs(monitored_service_id, checked_at, status);
 
--- SSL logs: Check on the ssl and log them
+-- SSL logs: Check on the SSL and log them
 CREATE TABLE ssl_logs (
-  ssl_log_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ssl_log_id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   monitored_service_id BIGINT NOT NULL,
-  domain          VARCHAR(255),
-  issuer          VARCHAR(255),
-  expiry_date     DATE,
-  days_remaining  INTEGER,
-  last_checked    TIMESTAMP DEFAULT NOW(),
-  date_created    TIMESTAMP DEFAULT NOW(),
-  date_modified   TIMESTAMP DEFAULT NOW(),
+  domain              VARCHAR(255),
+  issuer              VARCHAR(255),
+  serial_number       VARCHAR(255),       -- exact certificate serial number
+  signature_algorithm VARCHAR(100),       -- e.g., SHA256withRSA
+  public_key_algo     VARCHAR(50),        -- e.g., RSA, EC
+  public_key_length   INTEGER,            -- e.g., 2048, 256
+  san_list            TEXT,               -- comma-separated Subject Alternative Names
+  chain_valid         BOOLEAN,            -- true if certificate chain is valid
+  expiry_date         DATE,
+  days_remaining      INTEGER,
+  last_checked        TIMESTAMP DEFAULT NOW(),
+  date_created        TIMESTAMP DEFAULT NOW(),
+  date_modified       TIMESTAMP DEFAULT NOW(),
+
   CONSTRAINT fk_monitored_services_ssl_logs
     FOREIGN KEY (monitored_service_id) REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE,
 
   CONSTRAINT uniq_ssl_ms_domain UNIQUE (monitored_service_id, domain)
 );
+
 
 -- SSL that have been notified
 CREATE TABLE ssl_alerts (
