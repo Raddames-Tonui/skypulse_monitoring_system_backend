@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UserLoginRequest {
-    public String userEmail;
+    public String email;
     public String password;
     public String deviceName;
 

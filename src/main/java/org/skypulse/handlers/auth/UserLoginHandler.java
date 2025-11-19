@@ -5,6 +5,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.Cookie;
 import io.undertow.server.handlers.CookieImpl;
+import io.undertow.util.Headers;
 import org.skypulse.handlers.auth.dto.UserLoginRequest;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.JsonUtil;
@@ -30,9 +31,22 @@ public class UserLoginHandler implements HttpHandler {
     public void handleRequest(HttpServerExchange exchange) throws Exception {
         UserLoginRequest req = mapper.readValue(exchange.getInputStream(), UserLoginRequest.class);
 
-        if (req.userEmail == null || req.userEmail.isBlank() ||
+        if (exchange.getRequestMethod().equalToString("OPTIONS")) {
+            exchange.setStatusCode(204);
+            exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, "0");
+            exchange.endExchange();
+            return; // stop processing
+        }
+
+        if (!exchange.getRequestMethod().equalToString("POST")) {
+            ResponseUtil.sendError(exchange, 405, "Method Not Allowed");
+            return;
+        }
+
+
+        if (req.email == null || req.email.isBlank() ||
                 req.password == null || req.password.isBlank()) {
-            ResponseUtil.sendError(exchange, 400, "Missing required fields: userEmail and password are required");
+            ResponseUtil.sendError(exchange, 400, "Missing required fields: email and password are required");
             return;
         }
 
@@ -58,7 +72,7 @@ public class UserLoginHandler implements HttpHandler {
             Integer roleId = null;
 
             try (PreparedStatement ps = conn.prepareStatement(selectUser)) {
-                ps.setString(1, req.userEmail);
+                ps.setString(1, req.email);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         ResponseUtil.sendError(exchange, 401, "Invalid credentials");
@@ -85,13 +99,13 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // 2. Verify password
+            //  Verify password
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
                 ResponseUtil.sendError(exchange, 401, "Invalid credentials");
                 return;
             }
 
-            // 3. Collect role name & permissions
+            // Collect role name & permissions
             String roleName = null;
             Map<String, List<String>> formattedPermissions = new LinkedHashMap<>();
             if (roleId != null) {
@@ -125,7 +139,7 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // 4. Generate refresh token and insert into auth_sessions
+            // Generate refresh token and insert into auth_sessions
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
             Instant now = Instant.now();
@@ -154,7 +168,7 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // 5. Generate JWT access token
+            // Generate JWT access token
             String accessToken = JwtUtil.generateAccessTokenWithJti(
                     userUuid.toString(),
                     email,
@@ -163,7 +177,7 @@ public class UserLoginHandler implements HttpHandler {
                     jwtId
             );
 
-            // 6. Update last_login_at
+            // Update last_login_at
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE users SET last_login_at = ? WHERE user_id = ?")) {
                 ps.setTimestamp(1, Timestamp.from(now));
@@ -171,7 +185,7 @@ public class UserLoginHandler implements HttpHandler {
                 ps.executeUpdate();
             }
 
-            // 7. Set refresh token as Secure HttpOnly cookie
+            // Set refresh token as Secure HttpOnly cookie
             CookieImpl cookie = new CookieImpl("refreshToken", refreshToken);
             cookie.setHttpOnly(true);
             cookie.setSecure(true); // only send over HTTPS
@@ -179,7 +193,7 @@ public class UserLoginHandler implements HttpHandler {
             cookie.setMaxAge((int) REFRESH_TOKEN_TTL);
             exchange.setResponseCookie(cookie);
 
-            // 8. Build response without refresh token
+            // Build response without refresh token
             Map<String, Object> userData = new HashMap<>();
             userData.put("uuid", userUuid);
             userData.put("fullName", firstName + " " + lastName);
