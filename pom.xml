@@ -123,6 +123,15 @@
         </dependency>
 
 
+        <!--   Moustach      -->
+        <dependency>
+            <groupId>com.github.spullara.mustache.java</groupId>
+            <artifactId>compiler</artifactId>
+            <version>0.9.10</version>
+        </dependency>
+
+
+
         <!-- Core engine: Required in all setups -->
         <dependency>
             <groupId>com.openhtmltopdf</groupId>

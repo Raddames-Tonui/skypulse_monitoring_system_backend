@@ -1,4 +1,4 @@
-package org.skypulse.utils.security;
+package org.skypulse.config.security;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

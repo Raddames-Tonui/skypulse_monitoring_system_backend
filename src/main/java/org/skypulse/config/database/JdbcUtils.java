@@ -1,7 +1,5 @@
-package org.skypulse.utils;
+package org.skypulse.config.database;
 
-
-import org.skypulse.config.database.DatabaseManager;
 
 import javax.sql.DataSource;
 import java.sql.Connection;

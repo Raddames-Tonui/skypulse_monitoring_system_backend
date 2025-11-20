@@ -9,7 +9,7 @@ import org.skypulse.handlers.contacts.CreateContactGroupHandler;
 import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
-import org.skypulse.utils.security.AuthMiddleware;
+import org.skypulse.config.security.AuthMiddleware;
 
 public class Routes {
 

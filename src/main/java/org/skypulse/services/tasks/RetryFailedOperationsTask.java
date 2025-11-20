@@ -1,7 +1,7 @@
 package org.skypulse.services.tasks;
 
 import org.skypulse.services.ScheduledTask;
-import org.skypulse.utils.JdbcUtils;
+import org.skypulse.config.database.JdbcUtils;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;

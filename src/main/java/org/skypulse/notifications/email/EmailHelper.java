@@ -1,3 +1,5 @@
+package org.skypulse.notifications.email;
+
 import jakarta.activation.DataHandler;
 import jakarta.activation.DataSource;
 import jakarta.activation.FileDataSource;

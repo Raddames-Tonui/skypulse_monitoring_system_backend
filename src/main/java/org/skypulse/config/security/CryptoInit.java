@@ -1,4 +1,4 @@
-package org.skypulse.utils.security;
+package org.skypulse.config.security;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.slf4j.Logger;

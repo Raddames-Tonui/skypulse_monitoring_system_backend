@@ -1,4 +1,4 @@
-package org.skypulse.config;
+package org.skypulse.config.utils;
 
 import jakarta.xml.bind.annotation.XmlRootElement;
 

@@ -11,13 +11,11 @@ import java.util.UUID;
 public class LogContext {
     private LogContext() {};
 
-    /** Starts a new trace for a logical operation (e.g. request, job, or task) */
     public static void start(String component) {
         MDC.put("component", component);
         MDC.put("trace.id", UUID.randomUUID().toString());
     }
 
-    /** Optionally reuse an existing trace ID (e.g. from HTTP header) */
     public static void start(String component, String traceId) {
         MDC.put("component", component);
         MDC.put("trace.id", traceId != null ? traceId : UUID.randomUUID().toString());

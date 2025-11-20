@@ -1,4 +1,4 @@
-package org.skypulse.utils.security;
+package org.skypulse.config.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

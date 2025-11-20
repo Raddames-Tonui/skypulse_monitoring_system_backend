@@ -1,7 +1,6 @@
 package org.skypulse.services;
 
-import org.skypulse.services.ScheduledTask;
-import org.skypulse.utils.JdbcUtils;
+import org.skypulse.config.database.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,16 +29,14 @@ public class TaskScheduler {
         this.executor.setRemoveOnCancelPolicy(true);
     }
 
-    /**
-     * Register a task for scheduled execution.
-     */
+
+     // Register a task for scheduled execution.
     public void register(ScheduledTask task) {
         tasks.add(task);
     }
 
-    /**
-     * Start all registered tasks.
-     */
+
+    // Start all registered tasks.
     public void start() {
         for (ScheduledTask t : tasks) {
             logger.info("Scheduling task {} every {}s", t.name(), t.intervalSeconds());
@@ -63,9 +60,8 @@ public class TaskScheduler {
         }
     }
 
-    /**
-     * Logs the execution to background_tasks table.
-     */
+
+    //  Logs the execution to background_tasks table.
     private void logBackgroundTask(String taskName, long startMillis, long endMillis, String errorMessage) {
         try (Connection c = JdbcUtils.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -81,7 +77,7 @@ public class TaskScheduler {
             ps.setString(6, errorMessage);
             ps.executeUpdate();
         } catch (Exception e) {
-            logger.error("[TaskLogger] Failed to log task {}: {}", taskName, e.getMessage(), e);
+            logger.error("[ TaskLogger ] Failed to log task {}: {}", taskName, e.getMessage(), e);
         }
     }
 
@@ -89,14 +85,14 @@ public class TaskScheduler {
      * Stop all tasks and shutdown executor.
      */
     public void shutdown() {
-        logger.info("Shutting down TaskScheduler...");
+        logger.info("[--------- Shutting down TaskScheduler ---------]");
         for (ScheduledFuture<?> f : futures) f.cancel(true);
         executor.shutdownNow();
         try {
             if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
                 logger.warn("TaskScheduler did not terminate gracefully");
             } else {
-                logger.info("TaskScheduler stopped.");
+                logger.info("[---------  TaskScheduler stopped ---------]");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

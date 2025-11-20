@@ -6,7 +6,7 @@ import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
-import org.skypulse.utils.security.JwtUtil;
+import org.skypulse.config.security.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

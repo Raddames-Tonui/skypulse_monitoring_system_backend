@@ -54,7 +54,7 @@
     <!-- MODULE LOG LEVELS -->
     <logger name="io.undertow" level="WARN"/>
     <logger name="com.zaxxer.hikari" level="INFO"/>
-    <logger name="org.skypulse.utils.security.KeyProvider" level="INFO"/>
+    <logger name="org.skypulse.config.security.KeyProvider" level="INFO"/>
     <logger name="org.skypulse" level="DEBUG"/>
 
 </configuration>

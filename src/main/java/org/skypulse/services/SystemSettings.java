@@ -1,6 +1,6 @@
 package org.skypulse.services;
 
-import org.skypulse.utils.JdbcUtils;
+import org.skypulse.config.database.JdbcUtils;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;

@@ -6,7 +6,7 @@ import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
-import org.skypulse.utils.security.PasswordUtil;
+import org.skypulse.config.security.PasswordUtil;
 
 import javax.sql.DataSource;
 import java.io.InputStream;

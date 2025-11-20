@@ -47,13 +47,13 @@
     <!-- Notification Channels    -->
     <notification enabled="true">
         <email>
-            <smtpHost mode="TEXT">smtp.gmail.com</smtpHost>
+            <smtpHost>smtp.gmail.com</smtpHost>
             <smtpPort mode="TEXT">587</smtpPort>
             <useTLS mode="TEXT">true</useTLS>
-            <username mode="TEXT">alerts@skypulse.com</username>
-            <password mode="TEXT">StrongPasswordOrToken</password>
+            <username mode="TEXT">raddamestonui48@gmail.com</username>
+            <password mode="TEXT">ljii fucd iaxm zbmg</password>
             <fromName mode="TEXT">SkyPulse Monitor</fromName>
-            <fromAddress mode="TEXT">alert@skypulse.com</fromAddress>
+            <fromAddress mode="TEXT">raddamestonui48@gmail.com</fromAddress>
             <connectionTimeout mode="TEXT">10000</connectionTimeout>
             <retryAttempts mode="TEXT">3</retryAttempts>
         </email>

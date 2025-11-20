@@ -3,7 +3,7 @@ package org.skypulse.config.database;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.jetbrains.annotations.NotNull;
-import org.skypulse.config.XmlConfiguration;
+import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.config.utils.LogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,10 +25,6 @@ public class DatabaseManager {
         return initialized;
     }
 
-    /**
-     * Initializes the HikariCP connection pool from the configuration.
-     * Safe to call repeatedly (for background reconnection attempts).
-     */
     public static synchronized void initialize(XmlConfiguration cfg) throws SQLException {
         LogContext.start("DatabaseManager");
 

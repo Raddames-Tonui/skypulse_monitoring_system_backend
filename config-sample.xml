@@ -18,7 +18,7 @@
     <!-- PostgresSQL Data Source Configuration -->
     <dataSource>
         <driverClassName mode="TEXT">org.postgresql.Driver</driverClassName>
-        <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5434/skypulse_monitoring_system_database</jdbcUrl>
+        <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5435/skypulse_monitoring_system_database</jdbcUrl>
 
         <username  mode="TEXT">spadmin</username>
         <password  mode="TEXT">skyp@lse!2020</password>
@@ -32,7 +32,7 @@
     <!--  pool size ≈ (CPU cores × 2) + effective DB parallelism -->
     <connectionPool>
         <maximumPoolSize mode="TEXT">10</maximumPoolSize>
-        <minimumIdle mode="TEXT" >2</minimumIdle>
+        <minimumIdle mode="TEXT" >3</minimumIdle>
         <idleTimeout mode="TEXT">60000</idleTimeout>
         <connectionTimeout mode="TEXT">30000</connectionTimeout>
         <maxLifetime mode="TEXT">1800000</maxLifetime>
@@ -47,7 +47,7 @@
     <!-- Notification Channels    -->
     <notification enabled="true">
         <email>
-            <smtpHost mode="TEXT">smtp.gmail.com</smtpHost>
+            <smtpHost>smtp.gmail.com</smtpHost>
             <smtpPort mode="TEXT">587</smtpPort>
             <useTLS mode="TEXT">true</useTLS>
             <username mode="TEXT">alerts@skypulse.com</username>
