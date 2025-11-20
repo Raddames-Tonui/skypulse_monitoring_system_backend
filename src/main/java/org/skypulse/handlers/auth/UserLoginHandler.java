@@ -5,7 +5,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.CookieImpl;
 import io.undertow.util.Headers;
-import org.skypulse.handlers.auth.dto.UserLoginRequest;
+import org.skypulse.config.database.dtos.UserLoginRequest;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
@@ -34,7 +34,7 @@ public class UserLoginHandler implements HttpHandler {
             exchange.setStatusCode(204);
             exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, "0");
             exchange.endExchange();
-            return; // stop processing
+            return;
         }
 
         if (!exchange.getRequestMethod().equalToString("POST")) {
@@ -55,7 +55,6 @@ public class UserLoginHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // 1. Fetch user
             String selectUser = """
                 SELECT user_id, uuid, password_hash, first_name, last_name, user_email, is_deleted, role_id
                 FROM users
@@ -74,7 +73,7 @@ public class UserLoginHandler implements HttpHandler {
                 ps.setString(1, req.email);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
-                        ResponseUtil.sendError(exchange, 401, "Invalid credentials");
+                        ResponseUtil.sendError(exchange, 401, "Please check your credentials");
                         return;
                     }
                     userId = rs.getLong("user_id");
@@ -92,19 +91,17 @@ public class UserLoginHandler implements HttpHandler {
                     roleId = rs.getObject("role_id") == null ? null : rs.getInt("role_id");
 
                     if (rs.getBoolean("is_deleted")) {
-                        ResponseUtil.sendError(exchange, 403, "User is deleted. Contact administrator.");
+                        ResponseUtil.sendError(exchange, 403, "Please contact administrator.");
                         return;
                     }
                 }
             }
 
-            //  Verify password
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
                 ResponseUtil.sendError(exchange, 401, "Invalid credentials");
                 return;
             }
 
-            // Collect role name & permissions
             String roleName = null;
             Map<String, List<String>> formattedPermissions = new LinkedHashMap<>();
             if (roleId != null) {
@@ -113,27 +110,6 @@ public class UserLoginHandler implements HttpHandler {
                     ps.setInt(1, roleId);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) roleName = rs.getString("role_name");
-                    }
-                }
-
-                String permSql = """
-                    SELECT p.permission_code, rp.can_view, rp.can_create, rp.can_update, rp.can_delete
-                    FROM role_permissions rp
-                    JOIN permissions p ON rp.permission_id = p.permission_id
-                    WHERE rp.role_id = ?
-                """;
-                try (PreparedStatement ps = conn.prepareStatement(permSql)) {
-                    ps.setInt(1, roleId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        while (rs.next()) {
-                            String code = rs.getString("permission_code");
-                            List<String> actions = new ArrayList<>();
-                            if (rs.getBoolean("can_view")) actions.add("view");
-                            if (rs.getBoolean("can_create")) actions.add("create");
-                            if (rs.getBoolean("can_update")) actions.add("update");
-                            if (rs.getBoolean("can_delete")) actions.add("delete");
-                            formattedPermissions.put(code, actions);
-                        }
                     }
                 }
             }
@@ -167,7 +143,6 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // Generate JWT access token
             String accessToken = JwtUtil.generateAccessTokenWithJti(
                     userUuid.toString(),
                     email,
@@ -176,7 +151,6 @@ public class UserLoginHandler implements HttpHandler {
                     jwtId
             );
 
-            // Update last_login_at
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE users SET last_login_at = ? WHERE user_id = ?")) {
                 ps.setTimestamp(1, Timestamp.from(now));
@@ -184,7 +158,6 @@ public class UserLoginHandler implements HttpHandler {
                 ps.executeUpdate();
             }
 
-            // Set refresh token as Secure HttpOnly cookie
             CookieImpl cookie = new CookieImpl("refreshToken", refreshToken);
             cookie.setHttpOnly(true);
             cookie.setSecure(true); // only send over HTTPS
@@ -192,7 +165,6 @@ public class UserLoginHandler implements HttpHandler {
             cookie.setMaxAge((int) REFRESH_TOKEN_TTL);
             exchange.setResponseCookie(cookie);
 
-            // Build response without refresh token
             Map<String, Object> userData = new HashMap<>();
             userData.put("uuid", userUuid);
             userData.put("fullName", firstName + " " + lastName);

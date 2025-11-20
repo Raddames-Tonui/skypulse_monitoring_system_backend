@@ -15,7 +15,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- 1) USERS, ROLES, PERMISSIONS
+-- 1) USERS, ROLES,
 CREATE TABLE company (
     company_id        INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     company_name      VARCHAR(250) UNIQUE NOT NULL,
@@ -31,7 +31,7 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
 CREATE TABLE roles (
     role_id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    role_name        VARCHAR(20) UNIQUE NOT NULL,  -- e.g. admin  operator  viewer
+    role_name        VARCHAR(10) UNIQUE NOT NULL DEFAULT "VIEWER",  -- e.g. admin  operator  viewer
     role_description VARCHAR(250),
     date_created     TIMESTAMP DEFAULT NOW(),
     date_modified    TIMESTAMP DEFAULT NOW()
@@ -42,53 +42,15 @@ BEFORE UPDATE ON roles
 FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
 
-CREATE TABLE permissions (
-    permission_id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    permission_code         VARCHAR(50) UNIQUE NOT NULL,  -- e.g. view_dashboard
-    permission_description  VARCHAR(100),
-    date_created            TIMESTAMP DEFAULT NOW(),
-    date_modified           TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TRIGGER trg_permissions_touch_modified
-BEFORE UPDATE ON permissions
-FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
-
-
-CREATE TABLE role_permissions (
-    role_permission_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    role_id            INTEGER NOT NULL,
-    permission_id      INTEGER NOT NULL,
-    can_view           BOOLEAN DEFAULT FALSE,
-    can_create         BOOLEAN DEFAULT FALSE,
-    can_update         BOOLEAN DEFAULT FALSE,
-    can_delete         BOOLEAN DEFAULT FALSE,
-    date_created       TIMESTAMP DEFAULT NOW(),
-    date_modified      TIMESTAMP DEFAULT NOW(),
-    UNIQUE (role_id, permission_id),
-
-    CONSTRAINT fk_roles_role_permissions_role_id
-      FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
-
-    CONSTRAINT fk_permissions_role_permissions_permission_id
-      FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE CASCADE
-);
-
-CREATE TRIGGER trg_role_permissions_touch_modified
-BEFORE UPDATE ON role_permissions
-FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
-
-CREATE INDEX index_role_permissions_role_id ON role_permissions(role_id);
-
 
 CREATE TABLE users (
     user_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     uuid           UUID UNIQUE DEFAULT gen_random_uuid(),
     first_name     VARCHAR(20),
     last_name      VARCHAR(20),
-    user_email     VARCHAR(50) UNIQUE NOT NULL,
+    user_email     VARCHAR(150) UNIQUE NOT NULL,
     password_hash  TEXT NOT NULL,
-    role_id        INTEGER,
+    role_id INTEGER NOT NULL,
     last_login_at  TIMESTAMP,   -- updated on successful login
     last_seen_at   TIMESTAMP,   -- updated on every API hit or dashboard view
     last_ip        VARCHAR(64),
@@ -100,11 +62,14 @@ CREATE TABLE users (
     deleted_at     TIMESTAMP,
 
     CONSTRAINT fk_roles_users_role_id
-      FOREIGN KEY (role_id) REFERENCES roles(role_id),
+      FOREIGN KEY (role_id) REFERENCES roles(role_id) ON UPDATE CASCADE,
 
     CONSTRAINT fk_company_users_company_id
       FOREIGN KEY (company_id) REFERENCES company(company_id)
 );
+
+CREATE INDEX idx_users_email ON users(user_email);
+CREATE INDEX idx_users_role_id ON users(role_id);
 
 CREATE TRIGGER trg_users_touch_modified
 BEFORE UPDATE ON users
@@ -113,8 +78,7 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
 CREATE TABLE user_preferences (
     user_preference_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id            BIGINT UNIQUE,
-    theme              VARCHAR(20) DEFAULT 'light', -- 'dark', 'light', 'system';
+    user_id BIGINT      NOT NULL UNIQUE,
     alert_channel      VARCHAR(30) DEFAULT 'email', -- 'email', 'telegram', 'sms'
     receive_weekly_reports BOOLEAN DEFAULT TRUE,
     language           VARCHAR(10) DEFAULT 'en',
@@ -171,6 +135,10 @@ CREATE TABLE auth_sessions (
       FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
+CREATE INDEX idx_auth_sessions_user_id ON auth_sessions(user_id);
+CREATE INDEX idx_auth_sessions_jwt_id ON auth_sessions(jwt_id);
+CREATE INDEX idx_auth_sessions_refresh_hash ON auth_sessions(refresh_token_hash);
+
 -- Logs the login times of a user
 CREATE TABLE user_audit_session (
     user_audit_session_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -179,7 +147,7 @@ CREATE TABLE user_audit_session (
     user_agent            TEXT,
     login_time            TIMESTAMP DEFAULT NOW(),
     logout_time           TIMESTAMP,
-    session_token         VARCHAR(255),
+    session_token_hash    TEXT,
     device_name           VARCHAR(100),
     nearest_location      VARCHAR(50),
     session_status        VARCHAR(20) DEFAULT 'active',  -- active, expired, revoked
@@ -215,24 +183,6 @@ CREATE INDEX idx_login_attempts_status ON login_attempts(status);
 CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip_address, attempted_at DESC);
 
 
--- Optional per-user permissions to override role-permissions
-CREATE TABLE user_permissions (
-    user_permission_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id            BIGINT,
-    permission_id      INTEGER,
-    can_view           BOOLEAN,
-    can_create         BOOLEAN,
-    can_update         BOOLEAN,
-    can_delete         BOOLEAN,
-    date_created       TIMESTAMP DEFAULT NOW(),
-    date_modified      TIMESTAMP DEFAULT NOW(),
-
-    CONSTRAINT fk_users_user_permissions
-        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-
-    CONSTRAINT fk_permissions_user_permissions
-        FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE CASCADE
-);
 
 
 -- 2) CONTACT GROUPS & NOTIFICATIONS
@@ -317,7 +267,7 @@ CREATE TABLE notification_templates (
     storage_mode                VARCHAR(20) DEFAULT 'hybrid'
                                     CHECK (storage_mode IN ('database', 'filesystem', 'hybrid')),
     subject_template            TEXT NOT NULL,
-    body_template               TEXT NOT NULL,   -- Email/SMS body (HTML or plain text)
+    body_template               TEXT NOT NULL,   -- telegram/SMS body (HTML or plain text)
     pdf_template                TEXT,            -- Optional: for PDF layouts
     include_pdf                 BOOLEAN DEFAULT FALSE,
     body_template_key           VARCHAR(200),    -- e.g. 'emails/service_down_v1.html'
@@ -670,11 +620,12 @@ CREATE TABLE audit_log (
 
 CREATE TABLE system_settings (
   system_setting_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  uptime_check_interval INTEGER DEFAULT 5,       -- minutes
-  uptime_retry_count    INTEGER DEFAULT 3,       -- retries before DOWN
-  uptime_retry_delay    INTEGER DEFAULT 5,       -- seconds between retries
-  ssl_check_interval    INTEGER DEFAULT 360,     -- minutes (6 hours)
-  ssl_alert_thresholds  TEXT DEFAULT '30,14,7,3', -- comma-separated days
+  uptime_check_interval INTEGER NOT NULL DEFAULT 5,       -- minutes
+  uptime_retry_count    INTEGER NOT NULL DEFAULT 3,       -- retries before DOWN
+  uptime_retry_delay    INTEGER NOT NULL DEFAULT 5,       -- seconds between retries
+  ssl_check_interval    INTEGER NOT NULL DEFAULT 360,     -- minutes (6 hours)
+  ssl_alert_thresholds  TEXT NOT NULL DEFAULT '30,14,7,3', -- comma-separated days
+  notification_retry_count  INTEGER DEFAULT 5,    -- seconds between retries
   key                  VARCHAR(100) UNIQUE NOT NULL,
   value                TEXT,
   description          TEXT,

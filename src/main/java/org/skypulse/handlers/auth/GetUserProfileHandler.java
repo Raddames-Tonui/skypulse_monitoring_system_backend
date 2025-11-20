@@ -30,7 +30,7 @@ public class GetUserProfileHandler implements HttpHandler {
         }
 
         String token = authHeader.substring("Bearer ".length());
-        String userUuid = JwtUtil.getUserId(token);
+        String userUuid = JwtUtil.getUserUUId(token);
         if (userUuid == null) {
             ResponseUtil.sendError(exchange, 400, "Missing or invalid token");
             return;
@@ -42,7 +42,7 @@ public class GetUserProfileHandler implements HttpHandler {
             String userSql = """
                 SELECT u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, u.is_active, 
                        u.role_id, r.role_name,
-                       up.theme, up.alert_channel, up.receive_weekly_reports, 
+                        up.alert_channel, up.receive_weekly_reports, 
                        up.language, up.timezone, up.dashboard_layout
                 FROM users u
                 LEFT JOIN roles r ON r.role_id = u.role_id
@@ -76,7 +76,6 @@ public class GetUserProfileHandler implements HttpHandler {
                     roleName = rs.getString("role_name");
                     isActive = rs.getBoolean("is_active");
 
-                    preferences.put("theme", rs.getString("theme"));
                     preferences.put("alert_channel", rs.getString("alert_channel"));
                     preferences.put("receive_weekly_reports", rs.getBoolean("receive_weekly_reports"));
                     preferences.put("language", rs.getString("language"));
@@ -85,52 +84,15 @@ public class GetUserProfileHandler implements HttpHandler {
                 }
             }
 
-            // Fetch combined permissions, AND return only active ones
-            String permSql = """
-                SELECT p.permission_code,
-                       COALESCE(up.can_view, rp.can_view) AS can_view,
-                       COALESCE(up.can_create, rp.can_create) AS can_create,
-                       COALESCE(up.can_update, rp.can_update) AS can_update,
-                       COALESCE(up.can_delete, rp.can_delete) AS can_delete
-                FROM permissions p
-                LEFT JOIN role_permissions rp ON rp.permission_id = p.permission_id AND rp.role_id = ?
-                LEFT JOIN user_permissions up ON up.permission_id = p.permission_id AND up.user_id = ?
-                WHERE COALESCE(up.can_view, rp.can_view, FALSE)
-                   OR COALESCE(up.can_create, rp.can_create, FALSE)
-                   OR COALESCE(up.can_update, rp.can_update, FALSE)
-                   OR COALESCE(up.can_delete, rp.can_delete, FALSE)
-            """;
 
-            Map<String, List<String>> permissions = new HashMap<>();
-
-            try (PreparedStatement ps = conn.prepareStatement(permSql)) {
-                ps.setLong(1, roleId);
-                ps.setLong(2, userId);
-
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        String code = rs.getString("permission_code");
-                        List<String> actions = new ArrayList<>();
-
-                        if (rs.getBoolean("can_view")) actions.add("view");
-                        if (rs.getBoolean("can_create")) actions.add("create");
-                        if (rs.getBoolean("can_update")) actions.add("update");
-                        if (rs.getBoolean("can_delete")) actions.add("delete");
-
-                        permissions.put(code, actions);
-                    }
-                }
-            }
 
             Map<String, Object> data = new HashMap<>();
             data.put("uuid", userUuid);
-            data.put("first_name", firstName);
-            data.put("last_name", lastName);
+            data.put("full_name", firstName + lastName);
             data.put("email", email);
             data.put("role", roleName);
             data.put("is_active", isActive);
             data.put("preferences", preferences);
-            data.put("permissions", permissions);
 
             ResponseUtil.sendSuccess(exchange, "Profile fetched successfully", data);
 

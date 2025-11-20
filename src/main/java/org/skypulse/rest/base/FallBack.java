@@ -2,18 +2,19 @@ package org.skypulse.rest.base;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.Headers;
 import io.undertow.util.StatusCodes;
+import org.skypulse.utils.ResponseUtil;
 
-public class FallBack  implements HttpHandler {
+/***
+ * Handles unknown routes
+ * */
+public class FallBack implements HttpHandler {
 
     @Override
-    public void handleRequest(HttpServerExchange exchange) throws Exception {
-        exchange.setStatusCode(StatusCodes.OK);
+    public void handleRequest(HttpServerExchange exchange) {
+        String uri = exchange.getRequestURI();
+        String message = "URI " + uri + " not found on server";
 
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-        exchange.getResponseSender().send("URI" + exchange.getRequestURI()+ " not found on server");
-
-
+        ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, message);
     }
 }

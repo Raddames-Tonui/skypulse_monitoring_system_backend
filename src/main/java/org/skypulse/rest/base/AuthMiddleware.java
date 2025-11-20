@@ -1,8 +1,10 @@
-package org.skypulse.config.security;
+package org.skypulse.rest.base;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.DatabaseManager;
+import org.skypulse.config.database.dtos.UserContext;
+import org.skypulse.config.security.JwtUtil;
 import org.skypulse.utils.ResponseUtil;
 
 import java.sql.Connection;
@@ -12,11 +14,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * AuthMiddleware validates JWT tokens and ensures the session is valid (not revoked/expired).
- * It expects:
- *   - sub => user's uuid
- *   - jti => jwt_id (UUID) that matches auth_sessions.jwt_id
- */
+ * Validates JWT and populates UserContext
+ * */
 public class AuthMiddleware implements HttpHandler {
 
     private final HttpHandler next;
@@ -35,7 +34,7 @@ public class AuthMiddleware implements HttpHandler {
 
         String token = authHeader.substring("Bearer ".length()).trim();
 
-        String userUuidStr = JwtUtil.getUserId(token);
+        String userUuidStr = JwtUtil.getUserUUId(token);
         String jtiStr = JwtUtil.getJwtId(token);
 
         if (userUuidStr == null || jtiStr == null) {
@@ -43,7 +42,6 @@ public class AuthMiddleware implements HttpHandler {
             return;
         }
 
-        // basic UUID validation
         UUID userUuid, jtiUuid;
         try {
             userUuid = UUID.fromString(userUuidStr);
@@ -54,19 +52,22 @@ public class AuthMiddleware implements HttpHandler {
         }
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
-            // load user by uuid
+
             String userSql = """
-                SELECT user_id, uuid, first_name, last_name, user_email, role_id, is_deleted, is_active
-                FROM users
-                WHERE uuid = ?
+                SELECT u.user_id, u.uuid, u.first_name, u.last_name, u.user_email,
+                       u.role_id, r.role_name, u.is_deleted, u.is_active
+                FROM users u
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                WHERE u.uuid = ?
             """;
 
             Long userId = null;
-            java.util.UUID dbUuid = null;
+            UUID dbUuid = null;
             String firstName = null;
             String lastName = null;
             String email = null;
             Integer roleId = null;
+            String roleName = null;
             boolean isDeleted = false;
             boolean isActive = false;
 
@@ -83,6 +84,7 @@ public class AuthMiddleware implements HttpHandler {
                     lastName = rs.getString("last_name");
                     email = rs.getString("user_email");
                     roleId = rs.getObject("role_id") == null ? null : rs.getInt("role_id");
+                    roleName = rs.getString("role_name");
                     isDeleted = rs.getBoolean("is_deleted");
                     isActive = rs.getBoolean("is_active");
                 }
@@ -125,11 +127,9 @@ public class AuthMiddleware implements HttpHandler {
                 return;
             }
 
-            // Attach user context (use your existing UserContext class)
-            UserContext ctx = new UserContext(userId, dbUuid, firstName, lastName, email, roleId);
+            UserContext ctx = new UserContext(userId, dbUuid, firstName, lastName, email, roleId, roleName);
             exchange.putAttachment(UserContext.ATTACHMENT_KEY, ctx);
 
-            // proceed
             next.handleRequest(exchange);
 
         } catch (Exception e) {

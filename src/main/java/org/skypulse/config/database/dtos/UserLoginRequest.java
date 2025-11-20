@@ -1,4 +1,4 @@
-package org.skypulse.handlers.auth.dto;
+package org.skypulse.config.database.dtos;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

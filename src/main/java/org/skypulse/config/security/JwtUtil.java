@@ -36,7 +36,7 @@ public final class JwtUtil {
 
         return Jwts.builder()
                 .setSubject(userUuid)
-                .setId(jti.toString())                // IMPORTANT: use provided jti
+                .setId(jti.toString().toUpperCase())
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(ttlSeconds)))
                 .addClaims(Map.of(
@@ -57,7 +57,7 @@ public final class JwtUtil {
                 .getBody();
     }
 
-    public static String getUserId(String token) {
+    public static String getUserUUId(String token) {
         try {
             Claims c = parseToken(token);
             return c.getSubject();

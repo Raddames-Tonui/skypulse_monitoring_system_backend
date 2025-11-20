@@ -1,5 +1,6 @@
 package org.skypulse.services;
 
+import org.skypulse.config.database.dtos.SystemSettings;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.notifications.MultiChannelSender;
 import org.skypulse.notifications.email.EmailSender;

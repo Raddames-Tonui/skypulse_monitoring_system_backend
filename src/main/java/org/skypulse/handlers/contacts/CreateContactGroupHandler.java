@@ -6,7 +6,7 @@ import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.HttpRequestUtil;
 import org.skypulse.utils.ResponseUtil;
-import org.skypulse.config.security.UserContext;
+import org.skypulse.config.database.dtos.UserContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

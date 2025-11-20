@@ -27,7 +27,6 @@ public class UserSignupHandler implements HttpHandler {
             String email     = (body.get("user_email") != null) ? body.get("user_email").toString() : null;
             String password  = (body.get("password") != null) ? body.get("password").toString() : null;
 
-            // Safely handle role_id as Integer or String
             int roleId;
             Object roleObj = body.get("role_id");
             if (roleObj instanceof Number) {
@@ -64,7 +63,6 @@ public class UserSignupHandler implements HttpHandler {
                     }
                 }
 
-                // Insert user
                 String insertUserSql = """
                     INSERT INTO users (first_name, last_name, user_email, password_hash, role_id)
                     VALUES (?, ?, ?, ?, ?)
@@ -90,7 +88,6 @@ public class UserSignupHandler implements HttpHandler {
                     }
                 }
 
-                // Insert default preferences
                 String insertPrefsSql = "INSERT INTO user_preferences (user_id) VALUES (?);";
                 try (PreparedStatement ps = conn.prepareStatement(insertPrefsSql)) {
                     ps.setLong(1, userId);

@@ -2,7 +2,7 @@ package org.skypulse.services.tasks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.skypulse.services.ScheduledTask;
-import org.skypulse.services.SystemSettings;
+import org.skypulse.config.database.dtos.SystemSettings;
 import org.skypulse.config.database.JdbcUtils;
 import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;

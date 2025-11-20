@@ -6,7 +6,7 @@
         <port mode="TEXT">8000</port>
         <ioThreads mode="TEXT">10</ioThreads>
         <workerThreads mode="TEXT">100</workerThreads>
-        <basePath mode="TEXT"> /api/rest</basePath>
+        <basePath mode="TEXT">/api/rest</basePath>
     </server>
 
     <!-- JWT-CONFIGURATION   -->

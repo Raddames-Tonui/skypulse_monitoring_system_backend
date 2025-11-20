@@ -1,4 +1,4 @@
-package org.skypulse.services;
+package org.skypulse.config.database.dtos;
 
 import org.skypulse.config.database.JdbcUtils;
 
