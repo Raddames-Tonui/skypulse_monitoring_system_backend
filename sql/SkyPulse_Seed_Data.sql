@@ -92,7 +92,7 @@ ON CONFLICT (contact_group_name) DO NOTHING;
 -- MONITORED SERVICES
 INSERT INTO monitored_services (monitored_service_name, monitored_service_url, monitored_service_region,
                                 check_interval, retry_count, ssl_enabled, created_by)
-SELECT 'Main Website','https://skywatch.com','default', 5, 3, TRUE, u.user_id
+SELECT 'Main Website','https://skywatsfdsdfvch.com','default', 5, 3, TRUE, u.user_id
 FROM users u WHERE u.user_email='admin@skywatch.com'
 UNION ALL
 SELECT 'Trainee DOJO','https://the-dojo.pagoda.africa/api','default', 2, 3, TRUE, u.user_id

@@ -381,10 +381,13 @@ CREATE TABLE monitored_services (
   monitored_service_url  TEXT NOT NULL,
   monitored_service_region VARCHAR(100) DEFAULT 'default',
   check_interval         INTEGER DEFAULT 5,  -- the service is checked every _ minutes
-  retry_count            INTEGER DEFAULT 3,    -- How many attemps made b4 declaring 'DOWN'
+  retry_count            INTEGER DEFAULT 3,    -- How many attempts made b4 declaring 'DOWN'
   retry_delay            INTEGER DEFAULT 5,  --  wait time between retry attempts when a check fails in seconds
   expected_status_code   INTEGER DEFAULT 200,
   ssl_enabled            BOOLEAN DEFAULT TRUE,
+  last_uptime_status     VARCHAR(10) DEFAULT 'DOWN', -- UP, DOWN,
+  consecutive_failures  INTEGER DEFAULT 0,   -- consecutive_failures >= retry_count
+  last_checked           TIMESTAMP,
   created_by             BIGINT REFERENCES users(user_id),
   date_created           TIMESTAMP DEFAULT NOW(),
   date_modified          TIMESTAMP DEFAULT NOW(),
@@ -430,13 +433,16 @@ CREATE TABLE ssl_logs (
   ssl_log_id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   monitored_service_id BIGINT NOT NULL,
   domain              VARCHAR(255),
-  issuer              VARCHAR(255),
-  serial_number       VARCHAR(255),       -- exact certificate serial number
+  issuer              VARCHAR(255),        -- Certificate Authority(CA)
+  serial_number       VARCHAR(255),       --
   signature_algorithm VARCHAR(100),       -- e.g., SHA256withRSA
-  public_key_algo     VARCHAR(50),        -- e.g., RSA, EC
+  public_key_algo     VARCHAR(50),        -- e.g., RSA, EC, DSA
   public_key_length   INTEGER,            -- e.g., 2048, 256
-  san_list            TEXT,               -- comma-separated Subject Alternative Names
+  san_list            TEXT,               -- comma-separated Subject Alternative Names (All domains certificate covers)
   chain_valid         BOOLEAN,            -- true if certificate chain is valid
+  subject             VARCHAR(500),        -- certificates "Identity" (Common Name, Organization, Location)
+  fingerprint         VARCHAR(128),        -- unique hash of entire cert
+  issued_date         DATE,
   expiry_date         DATE,
   days_remaining      INTEGER,
   last_checked        TIMESTAMP DEFAULT NOW(),
@@ -663,13 +669,19 @@ CREATE TABLE audit_log (
 --*/
 
 CREATE TABLE system_settings (
-  system_setting_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  key                VARCHAR(100) UNIQUE NOT NULL,
-  value              TEXT,
-  description        TEXT,
-  date_created       TIMESTAMP DEFAULT NOW(),
-  date_modified      TIMESTAMP DEFAULT NOW()
+  system_setting_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  uptime_check_interval INTEGER DEFAULT 5,       -- minutes
+  uptime_retry_count    INTEGER DEFAULT 3,       -- retries before DOWN
+  uptime_retry_delay    INTEGER DEFAULT 5,       -- seconds between retries
+  ssl_check_interval    INTEGER DEFAULT 360,     -- minutes (6 hours)
+  ssl_alert_thresholds  TEXT DEFAULT '30,14,7,3', -- comma-separated days
+  key                  VARCHAR(100) UNIQUE NOT NULL,
+  value                TEXT,
+  description          TEXT,
+  date_created         TIMESTAMP DEFAULT NOW(),
+  date_modified        TIMESTAMP DEFAULT NOW()
 );
+
 
 CREATE TABLE api_keys (
     uuid UUID     DEFAULT gen_random_uuid() PRIMARY KEY,

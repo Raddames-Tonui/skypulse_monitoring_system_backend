@@ -1,6 +1,5 @@
 package org.skypulse.services;
 
-import org.skypulse.Main;
 import org.skypulse.services.tasks.EventQueueProcessorTask;
 import org.skypulse.services.tasks.SslExpiryMonitorTask;
 import org.skypulse.services.tasks.UptimeCheckTask;
@@ -9,47 +8,39 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.util.List;
 
 import static org.skypulse.Main.appScheduler;
 
+/**
+ * Register all Services (system + monitoring)
+ */
 public class ApplicationTasks {
 
     private static final Logger logger = LoggerFactory.getLogger(ApplicationTasks.class);
 
 
-    /**
-     * Register all application tasks (system + monitoring)
-     */
     public static void registerApplicationTasks(boolean dbAvailable) {
         logger.info("Registering application tasks...");
 
-
-        // dynamic registration from DB:
         if (dbAvailable) {
-            try (Connection conn = JdbcUtils.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(
-                         "SELECT monitored_service_id, monitored_service_name, monitored_service_url, check_interval, retry_count, retry_delay, expected_status_code " +
-                                 "FROM monitored_services WHERE is_active = TRUE")) {
-                ResultSet rs = ps.executeQuery();
-                while (rs.next()) {
-                    appScheduler.register(new UptimeCheckTask(
-                            rs.getLong("monitored_service_id"),
-                            rs.getString("monitored_service_name"),
-                            rs.getString("monitored_service_url"),
-                            rs.getInt("check_interval"),
-                            rs.getInt("retry_count"),
-                            rs.getInt("retry_delay"),
-                            rs.getInt("expected_status_code")
-                    ));
+            try (Connection conn = JdbcUtils.getConnection()) {
+                SystemSettings.SystemDefaults defaults = SystemSettings.loadSystemDefaults(conn);
+                List<SystemSettings.ServiceConfig> services = SystemSettings.loadActiveServices(conn);
+
+                // Register UptimeCheckTask for each service
+                for (SystemSettings.ServiceConfig service : services) {
+                    appScheduler.register(new UptimeCheckTask(service, defaults));
                 }
+
+                logger.info("Registered {} UptimeCheckTasks with system defaults.", services.size());
+
             } catch (Exception e) {
                 logger.error("Failed to register UptimeCheckTasks", e);
             }
         }
 
-        // System / maintenance tasks
+        // System / maintenance tasks (DB-independent)
         // appScheduler.register(new DiskHealthCheckTask("/"));
         // appScheduler.register(new LogRetentionCleanupTask());
 
@@ -60,7 +51,6 @@ public class ApplicationTasks {
         logger.info("Application tasks registered.");
     }
 
-
     /**
      * DB-backed tasks activated only when DB is online.
      */
@@ -68,7 +58,7 @@ public class ApplicationTasks {
         logger.info("Activating DB-backed tasks...");
         appScheduler.register(new EventQueueProcessorTask());
         appScheduler.register(new SslExpiryMonitorTask());
-//        appScheduler.register(new NotificationDispatchTask());
+        // appScheduler.register(new NotificationDispatchTask());
         logger.info("DB-backed tasks activated.");
     }
 }

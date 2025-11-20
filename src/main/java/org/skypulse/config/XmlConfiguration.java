@@ -55,7 +55,6 @@ public class XmlConfiguration {
         public String logFile;
     }
 
-    // --- Notification Section ---
     @XmlRootElement(name = "notification")
     public static class Notification {
         public boolean enabled;
