@@ -35,6 +35,38 @@ import java.util.*;
  }
 
  */
+
+/**
+ Explanation:
+
+ exchange.isInIoThread()
+
+ Returns true if the current request is running in an I/O thread.
+
+ I/O threads are meant to be non-blocking and handle lots of connections quickly.
+
+ You should not perform long/blocking operations (like DB queries, file I/O) directly in the I/O thread because it will block other requests.
+
+ exchange.dispatch(this)
+
+ Offloads the execution of this handler to a worker thread from Undertow’s worker thread pool.
+
+ The this refers to the current handler, so it will be called again in the worker thread.
+
+ return;
+
+ Prevents the code from continuing in the I/O thread after dispatching.
+
+ When dispatched, the handler will resume execution on the worker thread, where blocking operations are safe.
+
+ ✅ In short:
+
+ This pattern ensures safe blocking operations (like DB access) while keeping the I/O thread responsive.
+
+ Without it, doing blocking operations in an I/O thread can freeze your server under load.
+
+ */
+/
 public class GetMonitoredServicesHandler implements HttpHandler {
 
     // Whitelist DB columns that are allowed for sorting

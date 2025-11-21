@@ -25,7 +25,6 @@ public class RefreshTokenHandler implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
 
-        //  Get refresh token from HttpOnly cookie
         CookieImpl refreshCookie = (CookieImpl) exchange.getRequestCookie("refreshToken");
         if (refreshCookie == null || refreshCookie.getValue().isBlank()) {
             ResponseUtil.sendError(exchange, 401, "Refresh token missing or invalid");
@@ -35,7 +34,6 @@ public class RefreshTokenHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // Verify refresh token exists in auth_sessions
             String sessionQuery = """
                 SELECT user_id, jwt_id, expires_at
                 FROM auth_sessions

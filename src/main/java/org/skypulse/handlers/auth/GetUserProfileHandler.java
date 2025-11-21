@@ -38,7 +38,6 @@ public class GetUserProfileHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // Fetch user + role + preferences
             String userSql = """
                 SELECT u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, u.is_active, 
                        u.role_id, r.role_name,

@@ -5,6 +5,7 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserContext;
+import org.skypulse.handlers.services.MonitoredServiceHandler;
 import org.skypulse.utils.HttpRequestUtil;
 import org.skypulse.utils.ResponseUtil;
 import org.slf4j.Logger;
@@ -78,13 +79,7 @@ public class SystemSettingsHandlers  implements HttpHandler {
             """;
 
             PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, key);
-            ps.setString(2, value);
-            ps.setString(3, description);
-            ps.setObject(4, uptimeCheckInterval);
-            ps.setObject(5, uptimeRetryCount);
-            ps.setObject(6, uptimeRetryDelay);
-            ps.setObject(7, sslCheckInterval);
+            MonitoredServiceHandler.monitoredServiceDto(key, value, description, uptimeCheckInterval, uptimeRetryCount, uptimeRetryDelay, sslCheckInterval, ps);
             ps.setString(8, sslAlertThresholds);
             ps.setObject(9, notificationRetryCount);
 

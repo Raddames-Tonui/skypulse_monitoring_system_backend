@@ -104,13 +104,12 @@ public class KeyProvider {
 
 
     /** ENCRYPTION MASTER KEY */
-
     public static String getEncryptionKey() {
         return get(ENV_MASTER_KEY);
     }
 
 
-    /** SECURE FILE-BASED SECRET LOADING (docker/k8s) */
+    /** SECURE FILE-BASED SECRET LOADING  */
     public static String getKeyFromFile(String filePath) {
         if (!initialized) init();
 

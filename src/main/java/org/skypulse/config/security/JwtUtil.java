@@ -4,9 +4,13 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.skypulse.config.database.JdbcUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
@@ -20,11 +24,9 @@ public final class JwtUtil {
     private JwtUtil() {}
 
     /**
-     * Generate an access token using the user's UUID as subject and a provided jti (UUID).
+     *  Access token generated using the user's UUID as subject and a provided jti (UUID).
      *
      * @param userUuid user UUID (as string)
-     * @param email user's email
-     * @param roleName user's role name
      * @param ttlSeconds token lifetime in seconds
      * @param jti the JWT ID to set (should match auth_sessions.jwt_id)
      * @return compact JWT string
@@ -92,4 +94,23 @@ public final class JwtUtil {
             return null;
         }
     }
+
+
+        public static long getUserIdFromUuid(String userUuidStr) {
+            try (Connection conn = JdbcUtils.getConnection()) {
+                String sql = "SELECT user_id FROM users WHERE uuid = ? AND is_active = TRUE";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setObject(1, UUID.fromString(userUuidStr));
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            return rs.getLong("user_id");
+                        } else {
+                            throw new IllegalArgumentException("User not found or inactive for UUID: " + userUuidStr);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to get user_id for UUID: " + userUuidStr, e);
+            }
+        }
 }

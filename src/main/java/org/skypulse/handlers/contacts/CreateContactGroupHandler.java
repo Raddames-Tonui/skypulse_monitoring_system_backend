@@ -30,7 +30,6 @@ public class CreateContactGroupHandler implements HttpHandler {
             return;
         }
 
-        // Authentication
         UserContext ctx = exchange.getAttachment(UserContext.ATTACHMENT_KEY);
         if (ctx == null) {
             logger.warn("Unauthorized request to create contact group");
@@ -40,7 +39,6 @@ public class CreateContactGroupHandler implements HttpHandler {
 
         long adminId = ctx.getUserId();
 
-        // Fields
         String groupName = HttpRequestUtil.getString(body, "contact_group_name");
         String groupDescription = HttpRequestUtil.getString(body, "contact_group_description");
         List<Integer> memberIds = (List<Integer>) body.get("members_ids");

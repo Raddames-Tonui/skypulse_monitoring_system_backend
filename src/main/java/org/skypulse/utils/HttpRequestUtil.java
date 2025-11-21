@@ -9,9 +9,10 @@ import java.io.InputStream;
 import java.util.Map;
 
 /**
- * Parsing JSON, extracting fields
- * */
+ * Parsing JSON, extracting fields, and serialization
+ */
 public class HttpRequestUtil {
+
     public static Map<String, Object> parseJson(HttpServerExchange exchange)  {
         try (InputStream is = exchange.getInputStream()) {
             // Jackson needs a TypeReference to preserve generics
@@ -40,5 +41,15 @@ public class HttpRequestUtil {
         if (value instanceof Number) return ((Number) value).longValue();
         return Long.parseLong(value.toString());
     }
-}
 
+    /**
+     * Convert a Map<String, Object> to JSON string
+     */
+    public static String toJsonString(Map<String, Object> map) {
+        try {
+            return JsonUtil.mapper().writeValueAsString(map);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to convert map to JSON", e);
+        }
+    }
+}

@@ -6,12 +6,13 @@ import io.undertow.server.handlers.BlockingHandler;
 import org.skypulse.handlers.auth.*;
 import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
 import org.skypulse.handlers.contacts.CreateContactGroupHandler;
-import org.skypulse.handlers.services.CreateMonitoredServiceHandler;
+import org.skypulse.handlers.services.GetMonitoredServiceHandler;
+import org.skypulse.handlers.services.MonitoredServiceHandler;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
+import org.skypulse.rest.base.AuthMiddleware;
 import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
-import org.skypulse.rest.base.AuthMiddleware;
 
 public class Routes {
 
@@ -36,7 +37,9 @@ public class Routes {
 
     public static RoutingHandler monitoredServices() {
         return Handlers.routing()
-                .post("/", new Dispatcher(new BlockingHandler(new AuthMiddleware(new CreateMonitoredServiceHandler()))))
+                .get("/", new Dispatcher(new BlockingHandler(new GetMonitoredServiceHandler())))
+                .post("/", new Dispatcher(new BlockingHandler(new AuthMiddleware(new MonitoredServiceHandler()))))
+                .put("/", new Dispatcher(new BlockingHandler(new AuthMiddleware(new MonitoredServiceHandler()))))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }public static RoutingHandler systemSettings() {

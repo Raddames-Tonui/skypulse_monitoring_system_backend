@@ -330,9 +330,9 @@ CREATE TABLE monitored_services (
   monitored_service_name VARCHAR(200) NOT NULL,   -- eg. 'mwalimu sacco', 'ndege chai'
   monitored_service_url  TEXT NOT NULL,
   monitored_service_region VARCHAR(100) DEFAULT 'default',
-  check_interval         INTEGER DEFAULT 5,  -- the service is checked every _ minutes
-  retry_count            INTEGER DEFAULT 3,    -- How many attempts made b4 declaring 'DOWN'
-  retry_delay            INTEGER DEFAULT 5,  --  wait time between retry attempts when a check fails in seconds
+  check_interval         INTEGER,  -- the service is checked every _ minutes
+  retry_count            INTEGER,    -- How many attempts made b4 declaring 'DOWN'
+  retry_delay            INTEGER,  --  wait time between retry attempts when a check fails in seconds
   expected_status_code   INTEGER DEFAULT 200,
   ssl_enabled            BOOLEAN DEFAULT TRUE,
   last_uptime_status     VARCHAR(10) DEFAULT 'DOWN', -- UP, DOWN,
