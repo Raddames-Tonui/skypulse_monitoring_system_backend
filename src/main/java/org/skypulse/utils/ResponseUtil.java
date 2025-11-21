@@ -5,6 +5,7 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ResponseUtil {
@@ -48,4 +49,16 @@ public class ResponseUtil {
         }
         sendJson(exchange, 201, res);
     }
+
+
+    public static void sendPaginated(HttpServerExchange exchange, int page, int size, int total, List<?> items, String key) {
+        Map<String, Object> res = new HashMap<>();
+        res.put("page", page);
+        res.put("size", size);
+        res.put("total", total);
+        res.put("pages", (int) Math.ceil((double) total / size));
+        res.put(key, items);
+        sendJson(exchange, 200, res);
+    }
+
 }
