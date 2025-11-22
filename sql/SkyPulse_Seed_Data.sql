@@ -1,6 +1,6 @@
 -- ============================================================
--- SKY PULSE MONITORING SYSTEM • CLEAN SEED DATA (v3)
--- Compatible with new schema
+-- SKY PULSE MONITORING SYSTEM • CLEAN SEED DATA (MERGED v4)
+-- Compatible with new schema (auth_sessions + login_failures)
 -- Includes primary admin: raddamestonui48@gmail.com
 -- ============================================================
 
@@ -12,32 +12,43 @@ ON CONFLICT (company_name) DO NOTHING;
 -- ROLES
 INSERT INTO roles (role_name, role_description)
 VALUES
-    ('admin', 'Full system access'),
-    ('operator', 'Can manage services and alerts'),
-    ('viewer', 'Read-only dashboard access')
+    ('Admin', 'Full system access'),
+    ('Operator', 'Can manage services and alerts'),
+    ('Viewer', 'Read-only dashboard access')
 ON CONFLICT (role_name) DO NOTHING;
 
 -- USERS
-WITH
-    admin_role AS (SELECT role_id FROM roles WHERE role_name='admin'),
-    operator_role AS (SELECT role_id FROM roles WHERE role_name='operator'),
-    viewer_role AS (SELECT role_id FROM roles WHERE role_name='viewer')
+-- USERS
 INSERT INTO users (first_name, last_name, user_email, password_hash, role_id, company_id)
 SELECT 'Alice','Muthoni','admin@skywatch.com',
        '$2a$12$1234567890523456789012abcdefghijklmno12345678901234567890',
-       role_id, 1 FROM admin_role
+       r.role_id, 1
+FROM roles r
+WHERE r.role_name = 'Admin'
 ON CONFLICT (user_email) DO NOTHING;
 
 INSERT INTO users (first_name, last_name, user_email, password_hash, role_id, company_id)
 SELECT 'Brian','Otieno','ops@skywatch.com',
        '$2a$12$1234567890153456789012abcdefghijklmno12345678901234567890',
-       role_id, 1 FROM roles
+       r.role_id, 1
+FROM roles r
+WHERE r.role_name = 'Operator'
 ON CONFLICT (user_email) DO NOTHING;
 
 INSERT INTO users (first_name, last_name, user_email, password_hash, role_id, company_id)
 SELECT 'Carol','Wanjiku','viewer@skywatch.com',
        '$2a$12$1234567890823456789012abcdefghijklmno12345678901234567890',
-       role_id, 1 FROM roles
+       r.role_id, 1
+FROM roles r
+WHERE r.role_name = 'Viewer'
+ON CONFLICT (user_email) DO NOTHING;
+
+INSERT INTO users (first_name, last_name, user_email, password_hash, role_id, company_id)
+SELECT 'John','Dowe','radda@gmail.com',
+       '$2a$12$ABCDEF1234567890abcdefghijklmnopqrstuv0987654321zzzzzzzz',
+       r.role_id, 1
+FROM roles r
+WHERE r.role_name = 'Admin'
 ON CONFLICT (user_email) DO NOTHING;
 
 
@@ -51,18 +62,27 @@ INSERT INTO user_contacts (user_id, type, value, verified, is_primary)
 SELECT user_id, 'email', user_email, TRUE, TRUE FROM users
 ON CONFLICT DO NOTHING;
 
--- LOGIN ATTEMPTS
-INSERT INTO login_attempts (user_id, user_email, ip_address, status, reason)
-SELECT user_id, user_email, '102.45.66.7', 'SUCCESS', NULL
-FROM users WHERE user_email='admin@skywatch.com'
-UNION ALL
-SELECT user_id, user_email, '197.231.15.10', 'FAILURE', 'Incorrect password'
-FROM users WHERE user_email='ops@skywatch.com';
+-- LOGIN FAILURES (failed logins)
+INSERT INTO login_failures (user_id, user_email, ip_address, user_agent, reason)
+SELECT user_id, user_email, '197.231.15.10', 'Chrome/120.0', 'Incorrect password'
+FROM users WHERE user_email='ops@skywatch.com'
+ON CONFLICT DO NOTHING;
 
--- USER AUDIT SESSION
-INSERT INTO user_audit_session (user_id, ip_address, user_agent, login_time)
-SELECT user_id, '102.45.66.7', 'Chrome/120.0', NOW() - INTERVAL '3 hours'
-FROM users WHERE user_email='admin@skywatch.com';
+-- AUTH SESSIONS (successful logins)
+INSERT INTO auth_sessions (user_id, refresh_token_hash, jwt_id, issued_at, expires_at, last_used_at, login_time, ip_address, user_agent, device_name, session_status)
+SELECT user_id,
+       'placeholder_refresh_hash',
+       uuid_generate_v4(),
+       NOW() - INTERVAL '3 hours',
+       NOW() + INTERVAL '30 days',
+       NOW() - INTERVAL '3 hours',
+       NOW() - INTERVAL '3 hours',
+       '102.45.66.7',
+       'Chrome/120.0',
+       'Default Device',
+       'active'
+FROM users WHERE user_email='admin@skywatch.com'
+ON CONFLICT DO NOTHING;
 
 -- NOTIFICATION CHANNELS
 INSERT INTO notification_channels (notification_channel_code, notification_channel_name, is_enabled)
@@ -116,18 +136,9 @@ JOIN contact_groups cg ON cg.contact_group_name='Ops Team'
 WHERE s.monitored_service_name='Main Website'
 ON CONFLICT DO NOTHING;
 
--- SYSTEM SETTINGS (key/value + structured fields)
-INSERT INTO system_settings (
-    uptime_check_interval,
-    uptime_retry_count,
-    uptime_retry_delay,
-    ssl_check_interval,
-    ssl_alert_thresholds,
-    notification_retry_count,
-    key,
-    value,
-    description
-) VALUES
+-- SYSTEM SETTINGS (key/value)
+INSERT INTO system_settings (uptime_check_interval, uptime_retry_count, uptime_retry_delay, ssl_check_interval, ssl_alert_thresholds, notification_retry_count, key, value, description)
+VALUES
     (5,3,5,360,'30,14,7,3',5,'uptime_check_interval','5','Interval in minutes between uptime checks'),
     (5,3,5,360,'30,14,7,3',5,'uptime_retry_count','3','Number of retries before marking service DOWN'),
     (5,3,5,360,'30,14,7,3',5,'uptime_retry_delay','5','Delay in seconds between retries'),

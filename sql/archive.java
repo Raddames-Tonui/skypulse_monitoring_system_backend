@@ -2,159 +2,43 @@ package org.skypulse.handlers.services;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
-import org.skypulse.config.database.JdbcUtils;
+import io.undertow.util.PathTemplateMatch;
+import io.undertow.util.StatusCodes;
+import org.skypulse.config.database.DatabaseUtil;
 import org.skypulse.utils.ResponseUtil;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.*;
 
-/**
- {
- "page": 1,
- "size": 10,
- "total": 34,
- "pages": 4,
- "services": [
- {
- "monitored_service_id": 1,
- "name": "Impala Docs",
- "url": "https://impala-docs.netlify.app/",
- "region": "Kenya",
- "check_interval": 5,
- "retry_count": 3,
- "retry_delay": 5,
- "expected_status_code": 200,
- "ssl_enabled": true,
- "created_at": "2025-11-20T10:00:00Z",
- "updated_at": "2025-11-20T10:00:00Z"
- }
- ]
- }
-
- */
-public class GetMonitoredServicesHandler implements HttpHandler {
-
-    // Whitelist DB columns that are allowed for sorting
-    private static final Set<String> SORTABLE_COLUMNS = Set.of(
-            "monitored_service_name",
-            "monitored_service_url",
-            "monitored_service_region",
-            "check_interval",
-            "date_created",
-            "last_updated",
-            "is_active"
-    );
+public class GetSingleMonitoredServiceHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-
         if (exchange.isInIoThread()) {
             exchange.dispatch(this);
             return;
         }
 
-        Map<String, Deque<String>> params = exchange.getQueryParameters();
+        // Extract UUID from the path
+        PathTemplateMatch pathMatch = exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY);
+        String uuid = pathMatch.getParameters().get("uuid");
 
-        // -------- Pagination --------
-        int page = parseIntParam(params.get("page"), 1);
-        int size = parseIntParam(params.get("size"), 10);
-
-        int offset = (page - 1) * size;
-
-        // -------- Filtering (optional) --------
-        String filterName = getParam(params, "monitored_service_name");
-        String filterRegion = getParam(params, "monitored_service_region");
-        String filterActive = getParam(params, "is_active");
-
-        StringBuilder sql = new StringBuilder(
-                "SELECT * FROM monitored_services WHERE 1=1 "
-        );
-
-        List<Object> dbParams = new ArrayList<>();
-
-        if (filterName != null && !filterName.isBlank()) {
-            sql.append(" AND monitored_service_name ILIKE ? ");
-            dbParams.add("%" + filterName + "%");
+        if (uuid == null || uuid.isBlank()) {
+            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "UUID is required");
+            return;
         }
 
-        if (filterRegion != null && !filterRegion.isBlank()) {
-            sql.append(" AND monitored_service_region ILIKE ? ");
-            dbParams.add("%" + filterRegion + "%");
+        // Query DB
+        String sql = "SELECT * FROM monitored_services WHERE uuid = ?";
+        List<Object> params = List.of(uuid);
+
+        List<Map<String, Object>> result = DatabaseUtil.query(sql, params);
+
+        if (result.isEmpty()) {
+            ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, "Service not found");
+            return;
         }
 
-        if (filterActive != null && !filterActive.isBlank()) {
-            sql.append(" AND is_active = ? ");
-            dbParams.add(Boolean.parseBoolean(filterActive));
-        }
-
-        // -------- Sorting --------
-        String sortParam = getParam(params, "sort");
-        String orderBy = buildOrderBy(sortParam);
-        sql.append(orderBy);
-
-        // -------- Pagination appended --------
-        sql.append(" LIMIT ? OFFSET ? ");
-        dbParams.add(size);
-        dbParams.add(offset);
-
-        // Execute
-        List<Map<String, Object>> result = DatabaseUtil.query(sql.toString(), dbParams);
-
-        ResponseUtil.sendJson(exchange, StatusCodes.OK, result);
-    }
-
-    // -------- Helpers --------
-
-    private String getParam(Map<String, Deque<String>> params, String key) {
-        Deque<String> deque = params.get(key);
-        if (deque == null) return null;
-        return deque.peekFirst();
-    }
-
-    private int parseIntParam(Deque<String> deque, int defaultValue) {
-        try {
-            return deque == null ? defaultValue : Integer.parseInt(deque.peekFirst());
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
-    /**
-     * Parses "sort=name:asc,date_created:desc"
-     */
-    private String buildOrderBy(String sortParam) {
-        if (sortParam == null || sortParam.isBlank()) {
-            return " ORDER BY date_created DESC ";
-        }
-
-        String[] entries = sortParam.split(",");
-        List<String> orderSql = new ArrayList<>();
-
-        for (String entry : entries) {
-            String[] parts = entry.split(":");
-            if (parts.length != 2) continue;
-
-            String column = parts[0].trim();
-            String direction = parts[1].trim().toUpperCase();
-
-            // Validate column name
-            if (!SORTABLE_COLUMNS.contains(column)) continue;
-
-            // Validate direction
-            if (!direction.equals("ASC") && !direction.equals("DESC")) {
-                direction = "ASC";
-            }
-
-            orderSql.add(column + " " + direction);
-        }
-
-        if (orderSql.isEmpty()) {
-            return " ORDER BY date_created DESC ";
-        }
-
-        return " ORDER BY " + String.join(", ", orderSql) + " ";
+        // Return single service
+        ResponseUtil.sendSuccess(exchange, "Service fetched successfully", result.get(0));
     }
 }

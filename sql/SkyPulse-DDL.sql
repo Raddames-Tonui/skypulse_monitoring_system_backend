@@ -31,11 +31,12 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
 CREATE TABLE roles (
     role_id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    role_name        VARCHAR(10) UNIQUE NOT NULL DEFAULT "VIEWER",  -- e.g. admin  operator  viewer
+    role_name        VARCHAR(10) UNIQUE NOT NULL DEFAULT 'VIEWER',  -- e.g. admin, operator, viewer
     role_description VARCHAR(250),
     date_created     TIMESTAMP DEFAULT NOW(),
     date_modified    TIMESTAMP DEFAULT NOW()
 );
+
 
 CREATE TRIGGER trg_roles_touch_modified
 BEFORE UPDATE ON roles
@@ -50,11 +51,8 @@ CREATE TABLE users (
     last_name      VARCHAR(20),
     user_email     VARCHAR(150) UNIQUE NOT NULL,
     password_hash  TEXT NOT NULL,
-    role_id INTEGER NOT NULL,
-    last_login_at  TIMESTAMP,   -- updated on successful login
-    last_seen_at   TIMESTAMP,   -- updated on every API hit or dashboard view
-    last_ip        VARCHAR(64),
-    is_active      BOOLEAN DEFAULT TRUE,     -- On leave or active
+    role_id        INTEGER NOT NULL,
+    is_active      BOOLEAN DEFAULT TRUE,
     company_id     INTEGER,
     date_created   TIMESTAMP DEFAULT NOW(),
     date_modified  TIMESTAMP DEFAULT NOW(),
@@ -67,6 +65,7 @@ CREATE TABLE users (
     CONSTRAINT fk_company_users_company_id
       FOREIGN KEY (company_id) REFERENCES company(company_id)
 );
+
 
 CREATE INDEX idx_users_email ON users(user_email);
 CREATE INDEX idx_users_role_id ON users(role_id);
@@ -109,79 +108,49 @@ CREATE TABLE user_contacts (
 CREATE INDEX index_user_contacts_user_id ON user_contacts(user_id);
 
 
----- AUTH_SESSIONS: Stores refresh tokens, devices, and JWT identifiers
+-- AUTH_SESSIONS: Stores refresh tokens, devices, JWT identifiers, and audit info
 CREATE TABLE auth_sessions (
     auth_session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id BIGINT NOT NULL,
     refresh_token_hash TEXT NOT NULL,
     jwt_id UUID NOT NULL,
     issued_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMP NOT NULL, -- 7 - 30 days
-
+    expires_at TIMESTAMP NOT NULL,
+    last_used_at TIMESTAMP,
+    login_time TIMESTAMP DEFAULT NOW(),
+    logout_time TIMESTAMP,
     ip_address VARCHAR(64),
     user_agent TEXT,
     device_name VARCHAR(150),
-
+    nearest_location VARCHAR(50),
+    session_status VARCHAR(20) DEFAULT 'active', -- active, expired, revoked
     is_revoked BOOLEAN DEFAULT FALSE,
     revoked_at TIMESTAMP,
-
     replaced_by UUID,
     replaced_at TIMESTAMP,
-    last_used_at TIMESTAMP,   -- updates on every refresh
     date_created TIMESTAMP DEFAULT NOW(),
     date_modified TIMESTAMP DEFAULT NOW(),
-
-    CONSTRAINT fk_users_auth_sessions
-      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    CONSTRAINT fk_users_auth_sessions FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_auth_sessions_user_id ON auth_sessions(user_id);
 CREATE INDEX idx_auth_sessions_jwt_id ON auth_sessions(jwt_id);
 CREATE INDEX idx_auth_sessions_refresh_hash ON auth_sessions(refresh_token_hash);
 
--- Logs the login times of a user
-CREATE TABLE user_audit_session (
-    user_audit_session_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id               BIGINT,
-    ip_address            VARCHAR(64),
-    user_agent            TEXT,
-    login_time            TIMESTAMP DEFAULT NOW(),
-    logout_time           TIMESTAMP,
-    session_token_hash    TEXT,
-    device_name           VARCHAR(100),
-    nearest_location      VARCHAR(50),
-    session_status        VARCHAR(20) DEFAULT 'active',  -- active, expired, revoked
-    date_created          TIMESTAMP DEFAULT NOW(),
-    date_modified         TIMESTAMP DEFAULT NOW(),
 
-    CONSTRAINT fk_users_user_audit_session
-      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+CREATE TABLE login_failures (
+    login_failure_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id BIGINT,
+    user_email VARCHAR(150),
+    ip_address VARCHAR(64),
+    user_agent TEXT,
+    reason TEXT,
+    attempted_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT fk_users_login_failures FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
-CREATE INDEX index_user_audit_session_user_id ON user_audit_session(user_id);
-CREATE INDEX index_audit_session_login_time ON user_audit_session(login_time);
-
-
-CREATE TABLE login_attempts (
-    login_attempt_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id          BIGINT,
-    user_email       VARCHAR(100),
-    ip_address       VARCHAR(64),
-    user_agent       TEXT,
-    status           VARCHAR(10) CHECK (status IN ('SUCCESS', 'FAILURE')),
-    reason           TEXT,
-    attempted_at     TIMESTAMP DEFAULT NOW(),
-    date_created     TIMESTAMP DEFAULT NOW(),
-    date_modified    TIMESTAMP DEFAULT NOW(),
-
-    CONSTRAINT fk_users_login_attempts
-      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
-);
-
-CREATE INDEX idx_login_attempts_user_email ON login_attempts(user_email);
-CREATE INDEX idx_login_attempts_status ON login_attempts(status);
-CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip_address, attempted_at DESC);
-
+CREATE INDEX idx_login_failures_user_email ON login_failures(user_email);
+CREATE INDEX idx_login_failures_ip_time ON login_failures(ip_address, attempted_at DESC);
 
 
 

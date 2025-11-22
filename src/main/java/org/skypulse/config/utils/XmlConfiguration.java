@@ -23,8 +23,8 @@ public class XmlConfiguration {
     }
     @XmlRootElement(name = "jwtConfig")
     public static class JwtConfig {
-        public String accessTokenTTL;
-        public String refreshTokenTTL;
+        public String accessToken;
+        public String refreshToken;
     }
 
     // --- Data Source ---

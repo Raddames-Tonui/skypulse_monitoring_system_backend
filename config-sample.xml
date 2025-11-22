@@ -10,9 +10,10 @@
     </server>
 
     <!-- JWT-CONFIGURATION   -->
+    <!--   accessToken = in Minutes    refreshToken = in Days -->
     <jwtConfig>
-        <accessTokenTTL>3600L</accessTokenTTL>
-        <refreshTokenTTL>2592000</refreshTokenTTL>
+        <accessToken mode="TEXT">60</accessToken>
+        <refreshToken mode="TEXT">30</refreshToken>
     </jwtConfig>
 
     <!-- PostgresSQL Data Source Configuration -->

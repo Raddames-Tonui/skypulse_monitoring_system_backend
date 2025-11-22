@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.CookieImpl;
-import io.undertow.util.Headers;
-import org.skypulse.config.database.dtos.UserLoginRequest;
+import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
+import org.skypulse.config.database.dtos.UserLoginRequest;
+import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
 import org.skypulse.config.security.JwtUtil;
@@ -22,68 +23,61 @@ import java.util.*;
 public class UserLoginHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
-    private static final long ACCESS_TOKEN_TTL = 3600L;
-    private static final long REFRESH_TOKEN_TTL = 30L * 24L * 3600L; // 30 days
     private final ObjectMapper mapper = JsonUtil.mapper();
+
+    private final long ACCESS_TOKEN_TTL;
+    private final long REFRESH_TOKEN_TTL;
+
+    public UserLoginHandler(XmlConfiguration cfg) {
+        long accessToken = 15 * 60;        // min -> sec
+        long refreshToken = 30 * 24 * 3600; // days -> sec
+
+        try { accessToken = Long.parseLong(cfg.jwt.accessToken) * 60; } catch (Exception ignored) {}
+        try { refreshToken = Long.parseLong(cfg.jwt.refreshToken) * 24 * 3600; } catch (Exception ignored) {}
+
+        this.ACCESS_TOKEN_TTL = accessToken;
+        this.REFRESH_TOKEN_TTL = refreshToken;
+    }
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
         UserLoginRequest req = mapper.readValue(exchange.getInputStream(), UserLoginRequest.class);
 
-        if (exchange.getRequestMethod().equalToString("OPTIONS")) {
-            exchange.setStatusCode(204);
-            exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, "0");
-            exchange.endExchange();
-            return;
-        }
-
-        if (!exchange.getRequestMethod().equalToString("POST")) {
-            ResponseUtil.sendError(exchange, 405, "Method Not Allowed");
-            return;
-        }
-
-
         if (req.email == null || req.email.isBlank() ||
                 req.password == null || req.password.isBlank()) {
-            ResponseUtil.sendError(exchange, 400, "Missing required fields: email and password are required");
+            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing required fields: email and password are required");
             return;
         }
 
         String ipAddress = exchange.getSourceAddress() != null ? exchange.getSourceAddress().getHostString() : "unknown";
         String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
-        String deviceName = (req.deviceName == null || req.deviceName.isBlank()) ? "unknown" : req.deviceName;
+        String deviceName = "unknown";
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
+            // Fetch user
             String selectUser = """
                 SELECT user_id, uuid, password_hash, first_name, last_name, user_email, is_deleted, role_id
                 FROM users
                 WHERE user_email = ?
             """;
 
-            Long userId = null;
-            UUID userUuid = null;
-            String passwordHash = null;
-            String email = null;
-            String firstName = null;
-            String lastName = null;
-            Integer roleId = null;
+            long userId;
+            UUID userUuid;
+            String passwordHash, firstName, lastName, email;
+            Integer roleId;
 
             try (PreparedStatement ps = conn.prepareStatement(selectUser)) {
                 ps.setString(1, req.email);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
-                        ResponseUtil.sendError(exchange, 401, "Please check your credentials");
+                        logLoginFailure(conn, req.email, ipAddress, userAgent, "Email not found");
+                        ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Please check your credentials");
                         return;
                     }
+
                     userId = rs.getLong("user_id");
-                    Object uuidObj = rs.getObject("uuid");
-                    if (uuidObj == null) {
-                        logger.error("User id={} has NULL uuid", userId);
-                        ResponseUtil.sendError(exchange, 500, "Account error — missing UUID");
-                        return;
-                    }
-                    userUuid = UUID.fromString(uuidObj.toString());
+                    userUuid = UUID.fromString(rs.getObject("uuid").toString());
                     passwordHash = rs.getString("password_hash");
                     email = rs.getString("user_email");
                     firstName = rs.getString("first_name");
@@ -91,22 +85,24 @@ public class UserLoginHandler implements HttpHandler {
                     roleId = rs.getObject("role_id") == null ? null : rs.getInt("role_id");
 
                     if (rs.getBoolean("is_deleted")) {
-                        ResponseUtil.sendError(exchange, 403, "Please contact administrator.");
+                        logLoginFailure(conn, email, ipAddress, userAgent, "Account deleted");
+                        ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "Please contact administrator.");
                         return;
                     }
                 }
             }
 
+            // Verify password
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
-                ResponseUtil.sendError(exchange, 401, "Invalid credentials");
+                logLoginFailure(conn, email, ipAddress, userAgent, "Invalid credentials");
+                ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Invalid credentials");
                 return;
             }
 
-            String roleName = null;
-            Map<String, List<String>> formattedPermissions = new LinkedHashMap<>();
+            // Role name
+            String roleName = "";
             if (roleId != null) {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT role_name FROM roles WHERE role_id = ?")) {
+                try (PreparedStatement ps = conn.prepareStatement("SELECT role_name FROM roles WHERE role_id = ?")) {
                     ps.setInt(1, roleId);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) roleName = rs.getString("role_name");
@@ -114,77 +110,81 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // Generate refresh token and insert into auth_sessions
+            Instant now = Instant.now();
+            // Create auth_session
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
-            Instant now = Instant.now();
-            Instant expiresAt = now.plusSeconds(REFRESH_TOKEN_TTL);
 
             String insertAuth = """
                 INSERT INTO auth_sessions
-                (user_id, refresh_token_hash, jwt_id, issued_at, expires_at, ip_address, user_agent, device_name)
-                VALUES (?, ?, uuid_generate_v4(), ?, ?, ?, ?, ?)
-                RETURNING jwt_id
+                (user_id, refresh_token_hash, jwt_id, issued_at, expires_at, last_used_at, login_time, ip_address, user_agent, device_name, session_status)
+                VALUES (?, ?, uuid_generate_v4(), ?, ?, ?, ?, ?, ?, ?, 'active')
+                RETURNING jwt_id, auth_session_id
             """;
 
             UUID jwtId;
+            UUID authSessionId;
             try (PreparedStatement ps = conn.prepareStatement(insertAuth)) {
                 ps.setLong(1, userId);
                 ps.setString(2, refreshHash);
                 ps.setTimestamp(3, Timestamp.from(now));
-                ps.setTimestamp(4, Timestamp.from(expiresAt));
-                ps.setString(5, ipAddress);
-                ps.setString(6, userAgent);
-                ps.setString(7, deviceName);
+                ps.setTimestamp(4, Timestamp.from(now.plusSeconds(REFRESH_TOKEN_TTL)));
+                ps.setTimestamp(5, Timestamp.from(now));
+                ps.setTimestamp(6, Timestamp.from(now));
+                ps.setString(7, ipAddress);
+                ps.setString(8, userAgent);
+                ps.setString(9, deviceName);
 
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) throw new SQLException("Failed to create auth_session");
                     jwtId = (UUID) rs.getObject("jwt_id");
+                    authSessionId = (UUID) rs.getObject("auth_session_id");
                 }
             }
 
-            String accessToken = JwtUtil.generateAccessTokenWithJti(
-                    userUuid.toString(),
-                    email,
-                    roleName,
-                    ACCESS_TOKEN_TTL,
-                    jwtId
-            );
-
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE users SET last_login_at = ? WHERE user_id = ?")) {
-                ps.setTimestamp(1, Timestamp.from(now));
-                ps.setLong(2, userId);
-                ps.executeUpdate();
-            }
-
+            // Set cookie
             CookieImpl cookie = new CookieImpl("refreshToken", refreshToken);
             cookie.setHttpOnly(true);
-            cookie.setSecure(true); // only send over HTTPS
-            cookie.setPath("/");     // cookie valid site-wide
+            cookie.setSecure(true);
+            cookie.setPath("/");
             cookie.setMaxAge((int) REFRESH_TOKEN_TTL);
             exchange.setResponseCookie(cookie);
 
-            Map<String, Object> userData = new HashMap<>();
-            userData.put("uuid", userUuid);
-            userData.put("fullName", firstName + " " + lastName);
-            userData.put("email", email);
-            userData.put("role", roleName);
-            userData.put("permissions", formattedPermissions);
-
-            Map<String, Object> data = new HashMap<>();
-            data.put("accessToken", accessToken);
-            data.put("expiresIn", ACCESS_TOKEN_TTL);
-            data.put("user", userData);
+            // Response
+            Map<String, Object> userData = Map.of(
+                    "uuid", userUuid,
+                    "fullName", firstName + " " + lastName,
+                    "email", email,
+                    "role", roleName
+            );
+            Map<String, Object> data = Map.of(
+                    "accessToken", JwtUtil.generateAccessTokenWithJti(userUuid.toString(), email, roleName, ACCESS_TOKEN_TTL, jwtId),
+                    "expiresIn", ACCESS_TOKEN_TTL,
+                    "user", userData
+            );
 
             ResponseUtil.sendSuccess(exchange, "Login successful", data);
 
-        } catch (SQLException sqle) {
-            logger.error("SQL error during login", sqle);
-            ResponseUtil.sendError(exchange, 500, "Internal Server Error");
         } catch (Exception e) {
-            logger.error("Error during login", e);
-            ResponseUtil.sendError(exchange, 500, "Internal Server Error");
+            logger.error("Login failed", e);
+            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, "Internal Server Error");
+        }
+    }
+
+    private void logLoginFailure(Connection conn, String email, String ip, String ua, String reason) {
+        String sql = """
+            INSERT INTO login_failures
+            (user_email, ip_address, user_agent, reason)
+            VALUES (?, ?, ?, ?)
+        """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            ps.setString(2, ip);
+            ps.setString(3, ua);
+            ps.setString(4, reason);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            logger.warn("Failed to log login failure for {}: {}", email, e.getMessage());
         }
     }
 }

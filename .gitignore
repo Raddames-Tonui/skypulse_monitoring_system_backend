@@ -39,4 +39,6 @@ build/
 .DS_Store
 
 
-tmp/logs/
+
+tmp/logs/*.log
+logs/*.log

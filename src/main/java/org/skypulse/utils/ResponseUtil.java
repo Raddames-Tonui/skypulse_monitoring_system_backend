@@ -3,12 +3,15 @@ package org.skypulse.utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class ResponseUtil {
+    private static final Logger logger = LoggerFactory.getLogger(ResponseUtil.class);
 
     private static final ObjectMapper mapper = JsonUtil.mapper();
 
@@ -18,10 +21,13 @@ public class ResponseUtil {
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
             String json = mapper.writeValueAsString(body);
             exchange.getResponseSender().send(json);
+
+            logger.debug("Response sent. Status: {}, Body: {}", status, json);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Failed to send JSON response. Status: {}, Body: {}. Exception: {}", status, body, e.getMessage(), e);
         }
     }
+
 
     public static void sendError(HttpServerExchange exchange, int status, String message) {
         Map<String, Object> res = new HashMap<>();

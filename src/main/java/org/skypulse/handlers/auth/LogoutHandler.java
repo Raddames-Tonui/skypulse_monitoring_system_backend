@@ -1,33 +1,31 @@
 package org.skypulse.handlers.auth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.Cookie;
 import io.undertow.server.handlers.CookieImpl;
 import org.skypulse.config.database.DatabaseManager;
-import org.skypulse.utils.JsonUtil;
-import org.skypulse.utils.ResponseUtil;
 import org.skypulse.config.security.TokenUtil;
+import org.skypulse.utils.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 public class LogoutHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(LogoutHandler.class);
-    private final ObjectMapper mapper = JsonUtil.mapper();
 
     @Override
     public void handleRequest(HttpServerExchange exchange) {
-
         try {
             Cookie cookie = exchange.getRequestCookie("refreshToken");
-
             if (cookie == null || cookie.getValue() == null || cookie.getValue().isBlank()) {
                 clearRefreshCookie(exchange);
                 ResponseUtil.sendSuccess(exchange, "Already logged out", null);
@@ -37,71 +35,57 @@ public class LogoutHandler implements HttpHandler {
             String refreshToken = cookie.getValue();
             String refreshTokenHash = TokenUtil.hashToken(refreshToken);
 
+            logger.info("Refresh token hash: {}", refreshTokenHash);
+
             try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-                String sqlFind = """
-                    SELECT user_id, auth_session_id, is_revoked
+                String selectSql = """
+                    SELECT auth_session_id, is_revoked, expires_at
                     FROM auth_sessions
-                    WHERE refresh_token_hash = ?
+                    WHERE refresh_token_hash = ? AND session_status = 'active'
                 """;
 
-                Long userId = null;
-                String sessionId = null;
-                boolean isRevoked = false;
+                UUID authSessionId = null;
+                boolean alreadyRevoked = false;
 
-                try (PreparedStatement ps = conn.prepareStatement(sqlFind)) {
+                try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
                     ps.setString(1, refreshTokenHash);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
-                            userId = rs.getLong("user_id");
-                            sessionId = rs.getString("auth_session_id");
-                            isRevoked = rs.getBoolean("is_revoked");
+                            authSessionId = (UUID) rs.getObject("auth_session_id");
+                            alreadyRevoked = rs.getBoolean("is_revoked");
+                            Timestamp expiresAt = rs.getTimestamp("expires_at");
+                            if (expiresAt != null && expiresAt.toInstant().isBefore(Instant.now())) {
+                                alreadyRevoked = true;
+                            }
                         }
                     }
                 }
 
-                // If session doesn't exist → treat as logged out
-                if (userId == null || sessionId == null) {
+                if (authSessionId == null) {
                     clearRefreshCookie(exchange);
                     ResponseUtil.sendSuccess(exchange, "Already logged out", null);
                     return;
                 }
 
-                //  Revoke session if not already revoked
-                if (!isRevoked) {
-                    String sqlRevoke = """
+                if (!alreadyRevoked) {
+                    String updateSql = """
                         UPDATE auth_sessions
-                        SET is_revoked = TRUE, revoked_at = NOW(), date_modified = NOW()
-                        WHERE refresh_token_hash = ?
+                        SET is_revoked = TRUE,
+                            revoked_at = NOW(),
+                            logout_time = NOW(),
+                            session_status = 'revoked',
+                            date_modified = NOW()
+                        WHERE auth_session_id = ?
                     """;
-                    try (PreparedStatement ps = conn.prepareStatement(sqlRevoke)) {
-                        ps.setString(1, refreshTokenHash);
+                    try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                        ps.setObject(1, authSessionId);
                         ps.executeUpdate();
                     }
                 }
 
-                //  Update audit trail
-                String sqlAudit = """
-                    UPDATE user_audit_session
-                    SET logout_time = NOW(),
-                        session_status = 'revoked',
-                        date_modified = NOW()
-                    WHERE user_id = ?
-                      AND session_token = ?
-                      AND session_status = 'active'
-                """;
-
-                try (PreparedStatement ps = conn.prepareStatement(sqlAudit)) {
-                    ps.setLong(1, userId);
-                    ps.setString(2, sessionId);
-                    ps.executeUpdate();
-                }
-
-                // Clear refresh cookie on client
                 clearRefreshCookie(exchange);
-
                 ResponseUtil.sendSuccess(exchange, "Logged out successfully", null);
-
             }
 
         } catch (Exception e) {
@@ -110,9 +94,6 @@ public class LogoutHandler implements HttpHandler {
         }
     }
 
-    /**
-     * Clears the refreshToken cookie from the browser.
-     */
     private void clearRefreshCookie(HttpServerExchange exchange) {
         CookieImpl clear = new CookieImpl("refreshToken", "");
         clear.setPath("/");

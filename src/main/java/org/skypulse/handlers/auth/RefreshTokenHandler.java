@@ -3,14 +3,19 @@ package org.skypulse.handlers.auth;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.CookieImpl;
+import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
-import org.skypulse.utils.ResponseUtil;
 import org.skypulse.config.security.JwtUtil;
 import org.skypulse.config.security.TokenUtil;
+import org.skypulse.config.utils.XmlConfiguration;
+import org.skypulse.utils.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -19,41 +24,60 @@ import java.util.UUID;
 public class RefreshTokenHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(RefreshTokenHandler.class);
-    private static final long ACCESS_TOKEN_TTL = 3600L; // 1 hour
-    private static final long REFRESH_TOKEN_TTL = 30L * 24L * 3600L; // 30 days
+
+    private final long ACCESS_TOKEN_TTL;
+    private final long REFRESH_TOKEN_TTL;
+
+    public RefreshTokenHandler(XmlConfiguration cfg) {
+        long access = 3600;
+        long refresh = 30 * 24 * 3600;
+        try { access = Long.parseLong(cfg.jwt.accessToken) * 60; } catch(Exception ignored) {}
+        try { refresh = Long.parseLong(cfg.jwt.refreshToken) * 24 * 3600; } catch(Exception ignored) {}
+        this.ACCESS_TOKEN_TTL = access;
+        this.REFRESH_TOKEN_TTL = refresh;
+    }
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-
         CookieImpl refreshCookie = (CookieImpl) exchange.getRequestCookie("refreshToken");
         if (refreshCookie == null || refreshCookie.getValue().isBlank()) {
-            ResponseUtil.sendError(exchange, 401, "Refresh token missing or invalid");
+            ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Refresh token missing or invalid");
             return;
         }
+
         String refreshToken = refreshCookie.getValue();
+        String refreshTokenHash = TokenUtil.hashToken(refreshToken);
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
+            // Validate refresh token
             String sessionQuery = """
-                SELECT user_id, jwt_id, expires_at
+                SELECT auth_session_id, user_id, jwt_id, expires_at, is_revoked
                 FROM auth_sessions
-                WHERE refresh_token_hash = ?
+                WHERE refresh_token_hash = ? AND session_status='active'
             """;
 
-            long userId;
             UUID jwtId;
+            long userId;
             Instant expiresAt;
+            String authSessionId;
 
             try (PreparedStatement ps = conn.prepareStatement(sessionQuery)) {
-                ps.setString(1, TokenUtil.hashToken(refreshToken));
+                ps.setString(1, refreshTokenHash);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         ResponseUtil.sendError(exchange, 401, "Invalid refresh token");
                         return;
                     }
+                    authSessionId = rs.getString("auth_session_id");
                     userId = rs.getLong("user_id");
                     jwtId = (UUID) rs.getObject("jwt_id");
                     expiresAt = rs.getTimestamp("expires_at").toInstant();
+                    boolean revoked = rs.getBoolean("is_revoked");
+                    if (revoked) {
+                        ResponseUtil.sendError(exchange, 401, "Refresh token revoked");
+                        return;
+                    }
                 }
             }
 
@@ -62,7 +86,7 @@ public class RefreshTokenHandler implements HttpHandler {
                 return;
             }
 
-            //  Fetch user info + role name in one query
+            // Fetch user info
             String userQuery = """
                 SELECT u.user_email, u.uuid, r.role_name
                 FROM users u
@@ -78,7 +102,7 @@ public class RefreshTokenHandler implements HttpHandler {
                 ps.setLong(1, userId);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
-                        ResponseUtil.sendError(exchange, 404, "User not found");
+                        ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "User not found");
                         return;
                     }
                     email = rs.getString("user_email");
@@ -89,11 +113,7 @@ public class RefreshTokenHandler implements HttpHandler {
 
             // Generate new access token
             String newAccessToken = JwtUtil.generateAccessTokenWithJti(
-                    userUuid.toString(),
-                    email,
-                    roleName,
-                    ACCESS_TOKEN_TTL,
-                    jwtId
+                    userUuid.toString(), email, roleName, ACCESS_TOKEN_TTL, jwtId
             );
 
             // Rotate refresh token
@@ -102,18 +122,17 @@ public class RefreshTokenHandler implements HttpHandler {
 
             String updateAuth = """
                 UPDATE auth_sessions
-                SET refresh_token_hash = ?, expires_at = ?, last_used_at = ?
-                WHERE jwt_id = ?
+                SET refresh_token_hash = ?, expires_at = ?, last_used_at = NOW(), date_modified = NOW()
+                WHERE auth_session_id = ?
             """;
             try (PreparedStatement ps = conn.prepareStatement(updateAuth)) {
                 ps.setString(1, TokenUtil.hashToken(newRefreshToken));
                 ps.setTimestamp(2, Timestamp.from(newExpiresAt));
-                ps.setTimestamp(3, Timestamp.from(Instant.now()));
-                ps.setObject(4, jwtId);
+                ps.setObject(3, UUID.fromString(authSessionId));
                 ps.executeUpdate();
             }
 
-            // Set new HttpOnly cookie
+            // Set cookie
             CookieImpl cookie = new CookieImpl("refreshToken", newRefreshToken);
             cookie.setHttpOnly(true);
             cookie.setSecure(true);
@@ -121,15 +140,11 @@ public class RefreshTokenHandler implements HttpHandler {
             cookie.setMaxAge((int) REFRESH_TOKEN_TTL);
             exchange.setResponseCookie(cookie);
 
-            // Respond with new access token
             ResponseUtil.sendSuccess(exchange, "Token refreshed", Map.of(
                     "accessToken", newAccessToken,
                     "expiresIn", ACCESS_TOKEN_TTL
             ));
 
-        } catch (SQLException e) {
-            logger.error("SQL error during refresh", e);
-            ResponseUtil.sendError(exchange, 500, "Internal Server Error");
         } catch (Exception e) {
             logger.error("Error during token refresh", e);
             ResponseUtil.sendError(exchange, 500, "Internal Server Error");

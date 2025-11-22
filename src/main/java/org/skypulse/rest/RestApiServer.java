@@ -3,25 +3,14 @@ package org.skypulse.rest;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
-import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
-import io.undertow.util.Headers;
 import org.skypulse.config.utils.XmlConfiguration;
-import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.rest.base.CORSHandler;
-import org.skypulse.config.security.KeyProvider;
-import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
 
 public class RestApiServer {
     private static final Logger logger = LoggerFactory.getLogger(RestApiServer.class);
@@ -35,39 +24,22 @@ public class RestApiServer {
         try {
             String BASE_REST_API_URL = cfg.server.basePath;
 
-            // --- health-check endpoint ---
-            HttpHandler rootHandler = exchange -> {
-                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-                Map<String, Object> status = new LinkedHashMap<>();
-                status.put("app", "SkyPulse REST API");
-                status.put("version", "1.0.0");
-                status.put("environment", KeyProvider.getEnvironment());
-                status.put("uptime_seconds", Duration.between(START_TIME, Instant.now()).toSeconds());
-                status.put("timestamp", Instant.now().toString());
-
-                // DB connection health
-                boolean dbOK = false;
-                if (DatabaseManager.isInitialized()) {
-                    try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
-                        dbOK = conn.isValid(2);
-                    } catch (SQLException ignored) {
-                    }
-                }
-                status.put("database", dbOK ? "connected" : "unavailable");
-
-                String json = JsonUtil.mapper().writeValueAsString(status);
-                exchange.getResponseSender().send(json);
-
-            };
 
             PathHandler pathHandler = Handlers.path()
-                    .addPrefixPath(BASE_REST_API_URL+"/health", rootHandler)
-                    .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth())
+                    .addPrefixPath(BASE_REST_API_URL + "/health", Routes.health())
+                    .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/contacts",  Routes.contactGroups())
                     .addPrefixPath(BASE_REST_API_URL + "/services", Routes.monitoredServices())
                     .addPrefixPath(BASE_REST_API_URL+"/settings", Routes.systemSettings());
 
-
+//
+//            RoutingHandler routingHandler = Handlers.routing()
+//                    .get(BASE_REST_API_URL + "/health", Routes.health())
+//                    .get(BASE_REST_API_URL + "/auth", Routes.auth())
+//                    .get(BASE_REST_API_URL + "/contacts", Routes.contactGroups())
+//                    .get(BASE_REST_API_URL + "/services", Routes.monitoredServices())
+//                    .get(BASE_REST_API_URL + "/settings", Routes.systemSettings());
+////
 
             Undertow server = Undertow.builder()
                     .setServerOption(UndertowOptions.DECODE_URL, true)
@@ -78,7 +50,9 @@ public class RestApiServer {
                     .setWorkerThreads(cfg.server.workerThreads)
                     .addHttpListener(cfg.server.port, cfg.server.host)
                     .setHandler(new CORSHandler(pathHandler, "http://localhost:5173"))
+//                    .setHandler(new CORSHandler(routingHandler, "http://localhost:5173"))
                     .build();
+
 
             server.start();
             logger.info("""
@@ -96,7 +70,6 @@ public class RestApiServer {
                                         SKYPULSE MONITORING REST API
                                         --------------------------------------
                                         Undertow server started successfully!
-                                        Database connection established.
                                         Host   : http://{}:{}{}
                    \s""",
                     cfg.server.host, cfg.server.port, cfg.server.basePath);
