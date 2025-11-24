@@ -44,15 +44,15 @@ public class UptimeCheckTask implements ScheduledTask {
                            SystemSettings.SystemDefaults defaults) {
         this.service = service;
         this.defaults = defaults;
-        this.intervalSeconds = service.checkInterval > 0 ? service.checkInterval * 60 : defaults.uptimeCheckInterval * 60;
-        this.retryCount = service.retryCount > 0 ? service.retryCount : defaults.uptimeRetryCount;
-        this.retryDelay = service.retryDelay > 0 ? service.retryDelay : defaults.uptimeRetryDelay;
-        this.expectedStatusCode = service.expectedStatusCode > 0 ? service.expectedStatusCode : 200;
+        this.intervalSeconds = service.checkInterval() > 0 ? service.checkInterval() * 60 : defaults.uptimeCheckInterval() * 60;
+        this.retryCount = service.retryCount() > 0 ? service.retryCount() : defaults.uptimeRetryCount();
+        this.retryDelay = service.retryDelay() > 0 ? service.retryDelay() : defaults.uptimeRetryDelay();
+        this.expectedStatusCode = service.expectedStatusCode() > 0 ? service.expectedStatusCode() : 200;
     }
 
     @Override
     public String name() {
-        return "[ UptimeCheckTask ] " + service.serviceName;
+        return "[ UptimeCheckTask ] " + service.serviceName();
     }
 
     @Override
@@ -67,7 +67,7 @@ public class UptimeCheckTask implements ScheduledTask {
             performCheck(conn);
             conn.commit();
         } catch (Exception e) {
-            logger.error("Error executing uptime check for service {} ({})", service.serviceName, service.serviceId, e);
+            logger.error("Error executing uptime check for service {} ({})", service.serviceName(), service.serviceId(), e);
         }
     }
 
@@ -82,7 +82,7 @@ public class UptimeCheckTask implements ScheduledTask {
             long start = System.currentTimeMillis();
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(service.serviceUrl))
+                        .uri(URI.create(service.serviceUrl()))
                         .timeout(java.time.Duration.ofSeconds(8))
                         .GET()
                         .build();
@@ -123,7 +123,7 @@ public class UptimeCheckTask implements ScheduledTask {
         """;
 
         try (PreparedStatement ps = conn.prepareStatement(fetchSql)) {
-            ps.setLong(1, service.serviceId);
+            ps.setLong(1, service.serviceId());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     oldStatus = rs.getString("last_uptime_status");
@@ -150,7 +150,7 @@ public class UptimeCheckTask implements ScheduledTask {
         try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
             ps.setString(1, status);
             ps.setInt(2, consecutiveFailures);
-            ps.setLong(3, service.serviceId);
+            ps.setLong(3, service.serviceId());
             ps.executeUpdate();
         }
 
@@ -165,7 +165,7 @@ public class UptimeCheckTask implements ScheduledTask {
         """;
 
         try (PreparedStatement ps = conn.prepareStatement(insertLog)) {
-            ps.setLong(1, service.serviceId);
+            ps.setLong(1, service.serviceId());
             ps.setString(2, status);
             ps.setObject(3, responseTime);
             ps.setObject(4, httpCode);
@@ -193,8 +193,8 @@ public class UptimeCheckTask implements ScheduledTask {
 
         logger.info(
                 "Service '{}' [{}] checked: status={}, responseTime={}ms, httpCode={}, error={}, consecutiveFailures={}",
-                service.serviceName,
-                service.serviceUrl,
+                service.serviceName(),
+                service.serviceUrl(),
                 status,
                 responseTime,
                 httpCode,
@@ -218,8 +218,8 @@ public class UptimeCheckTask implements ScheduledTask {
                 : "SERVICE_RECOVERED";
 
         Map<String, Object> payload = new HashMap<>();
-        payload.put("service_id", service.serviceId);
-        payload.put("service_name", service.serviceName);
+        payload.put("service_id", service.serviceId());
+        payload.put("service_name", service.serviceName());
         payload.put("old_status", oldStatus);
         payload.put("new_status", newStatus);
         payload.put("error_message", errorMessage);
@@ -232,6 +232,7 @@ public class UptimeCheckTask implements ScheduledTask {
 
         String sql = """
         INSERT INTO event_outbox(
+            service_id,
             event_type,
             payload,
             status,
@@ -239,22 +240,23 @@ public class UptimeCheckTask implements ScheduledTask {
             created_at,
             updated_at
         ) VALUES (
-            ?, ?::jsonb, 'PENDING', 0, NOW(), NOW()
+            ?, ?, ?::jsonb, 'PENDING', 0, NOW(), NOW()
         )
         """;
 
 
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, eventType);
-            ps.setString(2, mapper.writeValueAsString(payload));
+            ps.setLong(1, service.serviceId());
+            ps.setString(2, eventType);
+            ps.setString(3, mapper.writeValueAsString(payload));
 
             int rows = ps.executeUpdate();
             logger.info("Event created: type={} for service {} (rows={})",
-                    eventType, service.serviceName, rows);
+                    eventType, service.serviceName(), rows);
 
         } catch (Exception e) {
             logger.error("Failed to create event for service {} ({})",
-                    service.serviceName, service.serviceId, e);
+                    service.serviceName(), service.serviceId(), e);
         }
     }
 

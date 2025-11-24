@@ -205,28 +205,7 @@ CREATE TABLE notification_channels (
   date_modified                    TIMESTAMP DEFAULT NOW()
 );
 
--- Which channel each user uses, priorities, overrides global channels
-CREATE TABLE contact_group_member_channels (
-    contact_group_member_channel_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    contact_group_member_id         BIGINT NOT NULL,
-    notification_channel_id         BIGINT NOT NULL,
-    is_enabled                      BOOLEAN DEFAULT TRUE,
-    priority                        SMALLINT DEFAULT 1,           -- 1 = primary, 2 = fallback
-    destination_override            VARCHAR(255),                -- custom email/handle/number
-    date_created                    TIMESTAMP DEFAULT NOW(),
-    date_modified                   TIMESTAMP DEFAULT NOW(),
-    UNIQUE (contact_group_member_id, notification_channel_id),
 
-    CONSTRAINT fk_contact_group_members_member_channels_member_id
-        FOREIGN KEY (contact_group_member_id)
-            REFERENCES contact_group_members(contact_group_member_id)
-            ON DELETE CASCADE,
-
-    CONSTRAINT fk_notification_channels_member_channels_channel_id
-        FOREIGN KEY (notification_channel_id)
-            REFERENCES notification_channels(notification_channel_id)
-            ON DELETE CASCADE
-);
 
 -- Customizable message templates
 CREATE TABLE notification_templates (
@@ -442,9 +421,11 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 CREATE TABLE event_outbox (
     event_outbox_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     uuid UUID DEFAULT gen_random_uuid(),
+    service_id BIGINT REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE,
     event_type      VARCHAR(100),                                 -- e.g. SERVICE_DOWN, SSL_EXPIRING
     payload         JSONB NOT NULL,                               -- the actual event data (service_id, message, etc)
     status          VARCHAR(20) DEFAULT 'PENDING',
+    first_failure_at    TIMESTAMP,  --
     retries         INT DEFAULT 0,
     last_attempt_at TIMESTAMP,
     created_at      TIMESTAMP DEFAULT NOW(),
@@ -452,6 +433,8 @@ CREATE TABLE event_outbox (
 );
 
 CREATE INDEX idx_event_outbox_status ON event_outbox(status);
+CREATE INDEX idx_event_outbox_service_id ON event_outbox(service_id);
+
 
 
 -- 4) REPORTING & HEALTH
@@ -533,7 +516,9 @@ CREATE TABLE system_settings (
     uptime_retry_delay    INT,
     ssl_check_interval    INT,
     ssl_alert_thresholds  TEXT,
+    notification_check_interval   INT,
     notification_retry_count INT,
+    notification_cooldown_minutes INT DEFAULT 10,
     version           INT DEFAULT 1,
     is_active         BOOLEAN DEFAULT TRUE,
     date_created      TIMESTAMP DEFAULT NOW(),
@@ -552,7 +537,9 @@ CREATE TABLE system_settings_history (
     uptime_retry_delay    INT,
     ssl_check_interval    INT,
     ssl_alert_thresholds  TEXT,
+    notification_check_interval   INT,
     notification_retry_count INT,
+    notification_cooldown_minutes INT,
     version           INT,
     action            VARCHAR(20), -- CREATE / UPDATE / DELETE
     changed_by        BIGINT,

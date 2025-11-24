@@ -3,7 +3,7 @@ package org.skypulse.handlers.services;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
-import org.skypulse.config.database.DatabaseUtil;
+import org.skypulse.config.database.DatabaseUtils;
 import org.skypulse.utils.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +38,7 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
         }
 
         String sql = "SELECT * FROM monitored_services WHERE uuid = ?";
-        List<Map<String, Object>> result = DatabaseUtil.query(sql, List.of(uuidValue));
+        List<Map<String, Object>> result = DatabaseUtils.query(sql, List.of(uuidValue));
 
         if (result.isEmpty()) {
             ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, "Service not found");

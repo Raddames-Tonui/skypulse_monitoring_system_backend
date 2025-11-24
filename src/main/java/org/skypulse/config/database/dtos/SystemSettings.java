@@ -9,84 +9,26 @@ import java.sql.Timestamp;
 import java.util.*;
 
 /**
- * SystemSettings loads system-wide defaults and active monitored services
+ * Loads system-wide defaults and active monitored services
  */
 public final class SystemSettings {
 
     private SystemSettings() {}
 
     // Holds system-wide defaults
-    public static class SystemDefaults {
-        public final int uptimeCheckInterval;
-        public final int uptimeRetryCount;
-        public final int uptimeRetryDelay;
-        public final int sslCheckInterval;
-        public final List<Integer> sslAlertThresholds;
-        public final long systemSettingId;
-        public final String key;
-        public final String value;
-        public final String description;
-        public final Timestamp dateCreated;
-        public final Timestamp dateModified;
-
-        public SystemDefaults(long systemSettingId, int uptimeCheckInterval, int uptimeRetryCount, int uptimeRetryDelay,
-                              int sslCheckInterval, List<Integer> sslAlertThresholds,
-                              String key, String value, String description, Timestamp dateCreated, Timestamp dateModified) {
-            this.systemSettingId = systemSettingId;
-            this.uptimeCheckInterval = uptimeCheckInterval;
-            this.uptimeRetryCount = uptimeRetryCount;
-            this.uptimeRetryDelay = uptimeRetryDelay;
-            this.sslCheckInterval = sslCheckInterval;
-            this.sslAlertThresholds = sslAlertThresholds;
-            this.key = key;
-            this.value = value;
-            this.description = description;
-            this.dateCreated = dateCreated;
-            this.dateModified = dateModified;
-        }
+        public record SystemDefaults(long systemSettingId, String key, String value, String description,
+                                     int uptimeCheckInterval, int uptimeRetryCount, int uptimeRetryDelay,
+                                     int sslCheckInterval, List<Integer> sslAlertThresholds, int notificationCheckInterval,
+                                     int notificationRetryCount, int notificationCooldownMinutes, int version,
+                                     boolean isActive, Timestamp dateCreated, Timestamp dateModified) {
     }
 
-    //  per-service configuration
-    public static class ServiceConfig {
-        public final long serviceId;
-        public final UUID uuid;
-        public final String serviceName;
-        public final String serviceUrl;
-        public final String serviceRegion;
-        public final int checkInterval;
-        public final int retryCount;
-        public final int retryDelay;
-        public final int expectedStatusCode;
-        public final boolean sslEnabled;
-        public final String lastUptimeStatus;
-        public final int consecutiveFailures;
-        public final Long createdBy;
-        public final Timestamp dateCreated;
-        public final Timestamp dateModified;
-        public final boolean isActive;
-
-        public ServiceConfig(long serviceId, UUID uuid, String serviceName, String serviceUrl,
-                             String serviceRegion, int checkInterval, int retryCount, int retryDelay,
-                             int expectedStatusCode, boolean sslEnabled, String lastUptimeStatus,
-                             int consecutiveFailures, Long createdBy, Timestamp dateCreated, Timestamp dateModified,
-                             boolean isActive) {
-            this.serviceId = serviceId;
-            this.uuid = uuid;
-            this.serviceName = serviceName;
-            this.serviceUrl = serviceUrl;
-            this.serviceRegion = serviceRegion;
-            this.checkInterval = checkInterval;
-            this.retryCount = retryCount;
-            this.retryDelay = retryDelay;
-            this.expectedStatusCode = expectedStatusCode;
-            this.sslEnabled = sslEnabled;
-            this.lastUptimeStatus = lastUptimeStatus;
-            this.consecutiveFailures = consecutiveFailures;
-            this.createdBy = createdBy;
-            this.dateCreated = dateCreated;
-            this.dateModified = dateModified;
-            this.isActive = isActive;
-        }
+    // Per-service configuration
+        public record ServiceConfig(long serviceId, UUID uuid, String serviceName, String serviceUrl, String serviceRegion,
+                                    int checkInterval, int retryCount, int retryDelay, int expectedStatusCode,
+                                    boolean sslEnabled, String lastUptimeStatus, int consecutiveFailures, Long createdBy,
+                                    Timestamp lastChecked, Timestamp dateCreated, Timestamp dateModified,
+                                    boolean isActive) {
     }
 
     // Fetch system-wide defaults from DB
@@ -107,14 +49,19 @@ public final class SystemSettings {
 
                 return new SystemDefaults(
                         rs.getLong("system_setting_id"),
+                        rs.getString("key"),
+                        rs.getString("value"),
+                        rs.getString("description"),
                         rs.getInt("uptime_check_interval"),
                         rs.getInt("uptime_retry_count"),
                         rs.getInt("uptime_retry_delay"),
                         rs.getInt("ssl_check_interval"),
                         thresholds,
-                        rs.getString("key"),
-                        rs.getString("value"),
-                        rs.getString("description"),
+                        rs.getInt("notification_check_interval"),
+                        rs.getInt("notification_retry_count"),
+                        rs.getInt("notification_cooldown_minutes"),
+                        rs.getInt("version"),
+                        rs.getBoolean("is_active"),
                         rs.getTimestamp("date_created"),
                         rs.getTimestamp("date_modified")
                 );
@@ -123,8 +70,11 @@ public final class SystemSettings {
 
         // fallback defaults
         return new SystemDefaults(
-                0L, 5, 3, 5, 360, Arrays.asList(30, 14, 7, 3),
-                "default", null, "Fallback defaults", new Timestamp(System.currentTimeMillis()), new Timestamp(System.currentTimeMillis())
+                0L, "default", null, "Fallback defaults",
+                5, 3, 5, 360, Arrays.asList(30, 14, 7, 3),
+                5, 3, 10, 1, true,
+                new Timestamp(System.currentTimeMillis()),
+                new Timestamp(System.currentTimeMillis())
         );
     }
 
@@ -151,6 +101,7 @@ public final class SystemSettings {
                         rs.getString("last_uptime_status"),
                         rs.getInt("consecutive_failures"),
                         rs.getObject("created_by") != null ? rs.getLong("created_by") : null,
+                        rs.getTimestamp("last_checked"),
                         rs.getTimestamp("date_created"),
                         rs.getTimestamp("date_modified"),
                         rs.getBoolean("is_active")

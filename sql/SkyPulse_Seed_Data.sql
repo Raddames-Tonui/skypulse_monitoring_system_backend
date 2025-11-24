@@ -162,3 +162,30 @@ INSERT INTO notification_templates (event_type, subject_template, body_template,
 SELECT 'ssl_expiry','SSL Expiry Warning: {{domain}}','SSL for {{domain}} expires in {{days_remaining}} days.', u.user_id
 FROM users u WHERE u.user_email='admin@skywatch.com'
 ON CONFLICT DO NOTHING;
+
+
+
+
+
+INSERT INTO notification_templates
+(event_type, subject_template, body_template, body_template_key, storage_mode)
+VALUES
+(
+    'SERVICE_DOWN',
+    'Service Down Alert - {{service_name}}',
+    '<p>Service {{service_name}} is down.</p>', -- simple fallback if filesystem fails
+    'service_down.html',                        -- file name in templates folder
+    'hybrid'
+);
+
+-- SERVICE_RECOVERED template
+INSERT INTO notification_templates
+(event_type, subject_template, body_template, body_template_key, storage_mode)
+VALUES
+(
+    'SERVICE_RECOVERED',
+    'Service Recovered - {{service_name}}',
+    '<p>Service {{service_name}} has recovered.</p>', -- fallback HTML
+    'service_recovered.html',
+    'hybrid'
+);

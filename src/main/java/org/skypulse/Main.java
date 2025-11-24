@@ -10,17 +10,8 @@ import org.skypulse.services.TaskScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.skypulse.services.ApplicationTasks.activateDbBackedTasks;
 import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
 
-/**
- * SkyPulse Main Entry Point (Degraded Startup Mode)
- * - Loads configuration
- * - Initializes DB if available
- * - Starts Undertow REST API
- * - Schedules DB reconnect in background if needed
- * - Runs all application tasks via TaskScheduler
- */
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
@@ -56,14 +47,12 @@ public class Main {
                 logger.warn("[------------Continuing in DEGRADED MODE — database unavailable------------]");
             }
 
-
             logger.info("[------------Starting Undertow server------------]");
             RestApiServer.startUndertow(cfg);
 
-            // --- Register application tasks and start ---
+            // --- Register tasks using ApplicationTasks ---
             registerApplicationTasks(dbAvailable, cfg);
             appScheduler.start();
-
 
             if (!dbAvailable) {
                 logger.info("[------------Starting background DB reconnection monitor------------]");
@@ -71,7 +60,7 @@ public class Main {
                     try {
                         DatabaseManager.initialize(cfg);
                         logger.info("[------------ Database reconnected successfully ------------]");
-                        activateDbBackedTasks(cfg);
+                        registerApplicationTasks(true, cfg);
                     } catch (Exception ignored) {}
                 });
             }

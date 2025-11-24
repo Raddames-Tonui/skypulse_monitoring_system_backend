@@ -3,6 +3,7 @@ package org.skypulse.utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
+import io.undertow.util.StatusCodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +44,7 @@ public class ResponseUtil {
         if (data != null) {
             res.put("data", data);
         }
-        sendJson(exchange, 200, res);
+        sendJson(exchange, StatusCodes.OK, res);
     }
 
     public static void sendCreated(HttpServerExchange exchange, String message, Object data) {
@@ -53,18 +54,19 @@ public class ResponseUtil {
         if (data != null) {
             res.put("data", data);
         }
-        sendJson(exchange, 201, res);
+        sendJson(exchange, StatusCodes.CREATED, res);
     }
 
 
-    public static void sendPaginated(HttpServerExchange exchange, int page, int size, int total, List<?> items, String key) {
+    public static void sendPaginated(HttpServerExchange exchange, String domain,  int page, int pageSize, int totalCount, List<?> records) {
         Map<String, Object> res = new HashMap<>();
-        res.put("page", page);
-        res.put("size", size);
-        res.put("total", total);
-        res.put("pages", (int) Math.ceil((double) total / size));
-        res.put(key, items);
-        sendJson(exchange, 200, res);
+        res.put("domain", domain);
+        res.put("current_page", page);
+        res.put("last_page", (int) Math.ceil((double) totalCount / pageSize));
+        res.put("page_size", pageSize);
+        res.put("total_count", totalCount);
+        res.put("records", records);
+        sendJson(exchange, StatusCodes.OK, res);
     }
 
 }

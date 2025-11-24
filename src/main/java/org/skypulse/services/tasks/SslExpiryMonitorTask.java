@@ -37,8 +37,8 @@ public class SslExpiryMonitorTask implements ScheduledTask {
 
             SystemSettings.SystemDefaults defaults = SystemSettings.loadSystemDefaults(conn);
 
-            this.sslCheckIntervalSeconds = defaults.sslCheckInterval * 60L;
-            this.alertThresholds = defaults.sslAlertThresholds;
+            this.sslCheckIntervalSeconds = defaults.sslCheckInterval() * 60L;
+            this.alertThresholds = defaults.sslAlertThresholds();
 
         } catch (Exception e) {
             logger.error("Failed loading system defaults for SSL monitor: {}", e.getMessage(), e);

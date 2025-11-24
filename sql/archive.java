@@ -1,89 +1,75 @@
-package org.skypulse.rest;
+package org.skypulse.services;
 
-import io.undertow.Handlers;
-import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
+import org.skypulse.config.database.dtos.SystemSettings;
 import org.skypulse.config.utils.XmlConfiguration;
-import org.skypulse.handlers.HealthCheckHandler;
-import org.skypulse.handlers.auth.GetUserProfileHandler;
-import org.skypulse.handlers.auth.UserLoginHandler;
-import org.skypulse.handlers.auth.UserSignupHandler;
-import org.skypulse.handlers.auth.LogoutHandler;
-import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
-import org.skypulse.handlers.contacts.CreateContactGroupHandler;
-import org.skypulse.handlers.services.GetMonitoredServiceHandler;
-import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
-import org.skypulse.handlers.services.MonitoredServiceHandler;
-import org.skypulse.handlers.settings.SystemSettingsHandlers;
-import org.skypulse.rest.base.AuthMiddleware;
-import org.skypulse.rest.base.Dispatcher;
-import org.skypulse.rest.base.FallBack;
-import org.skypulse.rest.base.InvalidMethod;
+import org.skypulse.notifications.MultiChannelSender;
+import org.skypulse.notifications.email.EmailSender;
+import org.skypulse.services.tasks.*;
+import org.skypulse.config.database.JdbcUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static org.skypulse.rest.base.RouteUtils.open;
-import static org.skypulse.rest.base.RouteUtils.secure;
+import java.sql.Connection;
+import java.util.List;
 
-public class Routes {
+import static org.skypulse.Main.appScheduler;
 
-    public static RoutingHandler auth(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+/**
+ * Register all Services (system + monitoring)
+ */
+public class ApplicationTasks {
 
-        return Handlers.routing()
-                .post("/login", open(new UserLoginHandler(cfg)))
-                .post("/register", open(new UserSignupHandler()))
-                .get("/profile", secure(new GetUserProfileHandler(), accessTokenTtl))
-                .post("/logout", secure(new LogoutHandler(), accessTokenTtl))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
+    private static final Logger logger = LoggerFactory.getLogger(ApplicationTasks.class);
+
+    public static void registerApplicationTasks(boolean dbAvailable, XmlConfiguration cfg) {
+        logger.info("[------------ Registering Services ------------]");
+
+        if (dbAvailable) {
+            try (Connection conn = JdbcUtils.getConnection()) {
+                SystemSettings.SystemDefaults defaults = SystemSettings.loadSystemDefaults(conn);
+                List<SystemSettings.ServiceConfig> services = SystemSettings.loadActiveServices(conn);
+
+                for (SystemSettings.ServiceConfig service : services) {
+                    appScheduler.register(new UptimeCheckTask(service, defaults));
+                }
+
+                logger.info("Registered {} Services for Up time check", services.size());
+
+            } catch (Exception e) {
+                logger.error("Failed to register UptimeCheckTasks", e);
+            }
+        }
+
+        // System / maintenance tasks (DB-independent)
+        // appScheduler.register(new DiskHealthCheckTask("/"));
+        // appScheduler.register(new LogRetentionCleanupTask());
+
+        if (dbAvailable) {
+            activateDbBackedTasks(cfg);
+        }
+
+        logger.info("[------------ Application tasks registered ------------]");
     }
 
+    /**
+     * DB-backed tasks activated only when DB is online.
+     */
+    public static void activateDbBackedTasks(XmlConfiguration cfg) {
 
-    public static RoutingHandler health(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
-
-        return Handlers.routing()
-                .get("/", secure(new HealthCheckHandler(), accessTokenTtl))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
-    }
-
-
-    public static RoutingHandler contactGroups(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
-
-        return Handlers.routing()
-
-                .post("/groups", secure(new CreateContactGroupHandler(), accessTokenTtl))
-                .post("/groups/{id}/members",secure(new AddMembersToGroupHandler(), accessTokenTtl))
-                .post("/groups/members/{uuid}", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
-    }
+        logger.info("[--------- Starting DB-backed tasks -------------]");
+//        appScheduler.register(new EventQueueProcessorTask());
+//         appScheduler.register(new NotificationDispatchTask());
 
 
-    public static RoutingHandler monitoredServices(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
-
-        return Handlers.routing()
-                .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
-                .get("/", secure(new GetMonitoredServiceHandler(), accessTokenTtl))
-                .post("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
-                .put("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
-    }
+        appScheduler.register(new SslExpiryMonitorTask());
 
 
-    public static RoutingHandler systemSettings(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+        MultiChannelSender sender = new MultiChannelSender();
+        sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
+        // sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
 
-        return Handlers.routing()
-                .post("/", new Dispatcher(
-                        new BlockingHandler(
-                                new AuthMiddleware(new SystemSettingsHandlers(), accessTokenTtl)
-                        )
-                ))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
+        appScheduler.register(new NotificationProcessorTask(sender));
+
+        logger.info("[--------- DB-backed tasks Started -------------]");
     }
 }
