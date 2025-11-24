@@ -7,13 +7,13 @@
         <ioThreads mode="TEXT">10</ioThreads>
         <workerThreads mode="TEXT">100</workerThreads>
         <basePath mode="TEXT">/api/rest</basePath>
-
     </server>
 
-    <!-- JWT-Configuration  accessToken = in Minutes    refreshToken = in Days -->
+    <!-- JWT-CONFIGURATION   -->
+    <!--   accessToken = in Minutes    refreshToken = in Days -->
     <jwtConfig>
-        <accessToken>60</accessToken>
-        <refreshToken>30</refreshToken>
+        <accessToken mode="TEXT">60</accessToken>
+        <refreshToken mode="TEXT">30</refreshToken>
     </jwtConfig>
 
     <!-- PostgresSQL Data Source Configuration -->

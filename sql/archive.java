@@ -1,44 +1,89 @@
-package org.skypulse.handlers.services;
+package org.skypulse.rest;
 
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.PathTemplateMatch;
-import io.undertow.util.StatusCodes;
-import org.skypulse.config.database.DatabaseUtil;
-import org.skypulse.utils.ResponseUtil;
+import io.undertow.Handlers;
+import io.undertow.server.RoutingHandler;
+import io.undertow.server.handlers.BlockingHandler;
+import org.skypulse.config.utils.XmlConfiguration;
+import org.skypulse.handlers.HealthCheckHandler;
+import org.skypulse.handlers.auth.GetUserProfileHandler;
+import org.skypulse.handlers.auth.UserLoginHandler;
+import org.skypulse.handlers.auth.UserSignupHandler;
+import org.skypulse.handlers.auth.LogoutHandler;
+import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
+import org.skypulse.handlers.contacts.CreateContactGroupHandler;
+import org.skypulse.handlers.services.GetMonitoredServiceHandler;
+import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
+import org.skypulse.handlers.services.MonitoredServiceHandler;
+import org.skypulse.handlers.settings.SystemSettingsHandlers;
+import org.skypulse.rest.base.AuthMiddleware;
+import org.skypulse.rest.base.Dispatcher;
+import org.skypulse.rest.base.FallBack;
+import org.skypulse.rest.base.InvalidMethod;
 
-import java.util.*;
+import static org.skypulse.rest.base.RouteUtils.open;
+import static org.skypulse.rest.base.RouteUtils.secure;
 
-public class GetSingleMonitoredServiceHandler implements HttpHandler {
+public class Routes {
 
-    @Override
-    public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
+    public static RoutingHandler auth(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
-        // Extract UUID from the path
-        PathTemplateMatch pathMatch = exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY);
-        String uuid = pathMatch.getParameters().get("uuid");
+        return Handlers.routing()
+                .post("/login", open(new UserLoginHandler(cfg)))
+                .post("/register", open(new UserSignupHandler()))
+                .get("/profile", secure(new GetUserProfileHandler(), accessTokenTtl))
+                .post("/logout", secure(new LogoutHandler(), accessTokenTtl))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
 
-        if (uuid == null || uuid.isBlank()) {
-            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "UUID is required");
-            return;
-        }
 
-        // Query DB
-        String sql = "SELECT * FROM monitored_services WHERE uuid = ?";
-        List<Object> params = List.of(uuid);
+    public static RoutingHandler health(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
-        List<Map<String, Object>> result = DatabaseUtil.query(sql, params);
+        return Handlers.routing()
+                .get("/", secure(new HealthCheckHandler(), accessTokenTtl))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
 
-        if (result.isEmpty()) {
-            ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, "Service not found");
-            return;
-        }
 
-        // Return single service
-        ResponseUtil.sendSuccess(exchange, "Service fetched successfully", result.get(0));
+    public static RoutingHandler contactGroups(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+
+                .post("/groups", secure(new CreateContactGroupHandler(), accessTokenTtl))
+                .post("/groups/{id}/members",secure(new AddMembersToGroupHandler(), accessTokenTtl))
+                .post("/groups/members/{uuid}", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
+
+
+    public static RoutingHandler monitoredServices(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+                .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
+                .get("/", secure(new GetMonitoredServiceHandler(), accessTokenTtl))
+                .post("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
+                .put("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
+
+
+    public static RoutingHandler systemSettings(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+                .post("/", new Dispatcher(
+                        new BlockingHandler(
+                                new AuthMiddleware(new SystemSettingsHandlers(), accessTokenTtl)
+                        )
+                ))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 }

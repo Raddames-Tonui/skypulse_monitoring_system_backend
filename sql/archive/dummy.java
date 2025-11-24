@@ -24,7 +24,7 @@ public class CreateContactGroupHandler implements HttpHandler {
             return;
         }
 
-        long adminId = (long) exchange.getAttachment(org.skypulse.config.security.AuthMiddleware.USER_ID_KEY); // From JWT
+        long adminId = (long) exchange.getAttachment(org.skypulse.utils.security.AuthMiddleware.USER_ID_KEY); // From JWT
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 

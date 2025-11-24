@@ -1,7 +1,7 @@
 package org.skypulse.config;
 
-import org.skypulse.config.security.KeyProvider;
-import org.skypulse.config.security.SecureFieldCrypto;
+import org.skypulse.utils.security.KeyProvider;
+import org.skypulse.utils.security.SecureFieldCrypto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -27,7 +27,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 
-import static org.skypulse.config.security.SecureFieldCrypto.*;
+import static org.skypulse.utils.security.SecureFieldCrypto.*;
 
 /**
  * - encrypt IN-PLACE (same file)

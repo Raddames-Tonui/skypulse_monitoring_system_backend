@@ -1,4 +1,4 @@
-package org.skypulse.config.security;
+package org.skypulse.utils.security;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -27,8 +27,8 @@ public class TokenUtil {
 
     public static String hashToken(String token) throws Exception{
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        byte[] d = md.digest(token.getBytes(StandardCharsets.UTF_8));
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(d);
+        byte[] data = md.digest(token.getBytes(StandardCharsets.UTF_8));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(data);
     }
 }
 

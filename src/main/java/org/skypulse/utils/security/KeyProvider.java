@@ -1,4 +1,4 @@
-package org.skypulse.config.security;
+package org.skypulse.utils.security;
 
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.JoranConfigurator;

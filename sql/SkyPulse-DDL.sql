@@ -493,71 +493,7 @@ CREATE TABLE system_health_logs (
   date_modified         TIMESTAMP DEFAULT NOW()
 );
 
-
--- 5) DYNAMIC FORM DEFINITIONS (frontend renderer, manual endpoints)
-
-CREATE TABLE form_definitions (
-  form_definition_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  uuid UUID     DEFAULT gen_random_uuid(),
-  form_key      VARCHAR(150) UNIQUE NOT NULL,
-  title         VARCHAR(200),
-  subtitle      TEXT,
-  api_endpoint  VARCHAR(255),
-  version       INTEGER DEFAULT 1,
-  created_by    BIGINT,
-  date_created  TIMESTAMP DEFAULT NOW(),
-  date_modified TIMESTAMP DEFAULT NOW(),
-  CONSTRAINT fk_form_definitions_created_by
-    FOREIGN KEY (created_by) REFERENCES users(user_id)
-);
-
-CREATE TRIGGER trg_form_definitions_touch_modified
-BEFORE UPDATE ON form_definitions
-FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
-
-CREATE TABLE form_fields (
-  form_field_id    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  form_id          BIGINT,
-  field_key        VARCHAR(150),
-  label            VARCHAR(255),
-  renderer         VARCHAR(50),
-  input_type       VARCHAR(50),
-  default_value    TEXT,
-  rules            JSONB,
-  visible_when     JSONB,
-  props            JSONB,
-  order_index      INTEGER DEFAULT 0,
-  date_created     TIMESTAMP DEFAULT NOW(),
-  date_modified    TIMESTAMP DEFAULT NOW(),
-  CONSTRAINT fk_form_fields_form_id
-    FOREIGN KEY (form_id) REFERENCES form_definitions(form_definition_id) ON DELETE CASCADE
-);
-
-CREATE TABLE form_layouts (
-  form_layout_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  form_id          BIGINT,
-  layout           JSONB,
-  order_index      INTEGER DEFAULT 0,
-  date_created     TIMESTAMP DEFAULT NOW(),
-  date_modified    TIMESTAMP DEFAULT NOW(),
-  CONSTRAINT fk_form_layouts_form_id
-    FOREIGN KEY (form_id) REFERENCES form_definitions(form_definition_id) ON DELETE CASCADE
-);
-
-CREATE TABLE form_audit_log (
-  form_audit_log_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  form_key           VARCHAR(150),
-  submitted_by       BIGINT,
-  payload            JSONB,
-  response           JSONB,
-  submitted_at       TIMESTAMP DEFAULT NOW(),
-  date_created       TIMESTAMP DEFAULT NOW(),
-  date_modified      TIMESTAMP DEFAULT NOW(),
-  CONSTRAINT fk_form_audit_log_submitted_by
-    FOREIGN KEY (submitted_by) REFERENCES users(user_id)
-);
-
--- 6) AUDIT & SETTINGS
+-- 5) AUDIT & SETTINGS
 --- CRUD Audit performed by user
 CREATE TABLE audit_log (
   audit_log_id    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -588,20 +524,42 @@ CREATE TABLE audit_log (
 --*/
 
 CREATE TABLE system_settings (
-  system_setting_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  uptime_check_interval INTEGER NOT NULL DEFAULT 5,       -- minutes
-  uptime_retry_count    INTEGER NOT NULL DEFAULT 3,       -- retries before DOWN
-  uptime_retry_delay    INTEGER NOT NULL DEFAULT 5,       -- seconds between retries
-  ssl_check_interval    INTEGER NOT NULL DEFAULT 360,     -- minutes (6 hours)
-  ssl_alert_thresholds  TEXT NOT NULL DEFAULT '30,14,7,3', -- comma-separated days
-  notification_retry_count  INTEGER DEFAULT 5,    -- seconds between retries
-  key                  VARCHAR(100) UNIQUE NOT NULL,
-  value                TEXT,
-  description          TEXT,
-  date_created         TIMESTAMP DEFAULT NOW(),
-  date_modified        TIMESTAMP DEFAULT NOW()
+    system_setting_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    key               VARCHAR(150) UNIQUE NOT NULL,
+    value             TEXT,
+    description       TEXT,
+    uptime_check_interval INT,
+    uptime_retry_count    INT,
+    uptime_retry_delay    INT,
+    ssl_check_interval    INT,
+    ssl_alert_thresholds  TEXT,
+    notification_retry_count INT,
+    version           INT DEFAULT 1,
+    is_active         BOOLEAN DEFAULT TRUE,
+    date_created      TIMESTAMP DEFAULT NOW(),
+    date_modified     TIMESTAMP DEFAULT NOW()
 );
 
+-- History table (stores every change in system settings)
+CREATE TABLE system_settings_history (
+    history_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    system_setting_id BIGINT,
+    key               VARCHAR(150),
+    value             TEXT,
+    description       TEXT,
+    uptime_check_interval INT,
+    uptime_retry_count    INT,
+    uptime_retry_delay    INT,
+    ssl_check_interval    INT,
+    ssl_alert_thresholds  TEXT,
+    notification_retry_count INT,
+    version           INT,
+    action            VARCHAR(20), -- CREATE / UPDATE / DELETE
+    changed_by        BIGINT,
+    ip_address        VARCHAR(64),
+    date_created      TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (system_setting_id) REFERENCES system_settings(system_setting_id)
+);
 
 CREATE TABLE api_keys (
     uuid UUID     DEFAULT gen_random_uuid() PRIMARY KEY,

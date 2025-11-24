@@ -6,7 +6,7 @@ import jakarta.xml.bind.annotation.XmlRootElement;
 public class XmlConfiguration {
 
     public Server server;
-    public JwtConfig jwt;
+    public JwtConfig jwtConfig;
     public DataSource dataSource;
     public ConnectionPool connectionPool;
     public Logging logging;

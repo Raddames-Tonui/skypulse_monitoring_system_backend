@@ -2,7 +2,7 @@ package org.skypulse.utils;
 
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.JdbcUtils;
-import org.skypulse.config.security.JwtUtil;
+import org.skypulse.utils.security.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

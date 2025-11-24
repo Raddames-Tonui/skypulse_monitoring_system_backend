@@ -29,7 +29,6 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
         String uuid = uuidParam.getFirst();
         logger.debug("GetSingleMonitoredServiceHandler uuid={}", uuid);
 
-        // Validate the UUID in Java (no SQL CAST needed)
         UUID uuidValue;
         try {
             uuidValue = UUID.fromString(uuid);
@@ -46,11 +45,8 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
             return;
         }
 
-        // Filter response fields
         Map<String, Object> service = new HashMap<>(result.getFirst());
         service.remove("monitored_service_id");
-        service.remove("created_by");
-        // service.remove("uuid"); // remove this too if desired
 
         ResponseUtil.sendJson(exchange, StatusCodes.OK, service);
     }

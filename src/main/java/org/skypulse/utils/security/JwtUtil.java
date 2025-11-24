@@ -1,4 +1,4 @@
-package org.skypulse.config.security;
+package org.skypulse.utils.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -46,6 +46,7 @@ public final class JwtUtil {
                         CLAIM_ROLE, roleName
                 ))
                 .signWith(key, SignatureAlgorithm.HS256)
+                .setIssuer("SkyPulse-Monitoring-System")
                 .compact();
     }
 
@@ -113,4 +114,15 @@ public final class JwtUtil {
                 throw new RuntimeException("Failed to get user_id for UUID: " + userUuidStr, e);
             }
         }
+
+    public static boolean isExpired(String token) {
+        try {
+            Claims claims = parseToken(token);
+            Date exp = claims.getExpiration();
+            return exp == null || exp.toInstant().isBefore(Instant.now());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
 }

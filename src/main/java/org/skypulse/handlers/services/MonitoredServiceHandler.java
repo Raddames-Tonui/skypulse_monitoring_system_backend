@@ -5,7 +5,7 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserContext;
-import org.skypulse.config.security.JwtUtil;
+import org.skypulse.utils.security.JwtUtil;
 import org.skypulse.utils.AuditLogger;
 import org.skypulse.utils.HttpRequestUtil;
 import org.skypulse.utils.ResponseUtil;

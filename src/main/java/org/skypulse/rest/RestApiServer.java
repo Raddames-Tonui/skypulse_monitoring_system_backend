@@ -26,20 +26,12 @@ public class RestApiServer {
 
 
             PathHandler pathHandler = Handlers.path()
-                    .addPrefixPath(BASE_REST_API_URL + "/health", Routes.health())
+                    .addPrefixPath(BASE_REST_API_URL + "/health", Routes.health(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth(cfg))
-                    .addPrefixPath(BASE_REST_API_URL + "/contacts",  Routes.contactGroups())
-                    .addPrefixPath(BASE_REST_API_URL + "/services", Routes.monitoredServices())
-                    .addPrefixPath(BASE_REST_API_URL+"/settings", Routes.systemSettings());
+                    .addPrefixPath(BASE_REST_API_URL + "/contacts",  Routes.contactGroups(cfg))
+                    .addPrefixPath(BASE_REST_API_URL + "/services", Routes.monitoredServices(cfg))
+                    .addPrefixPath(BASE_REST_API_URL+"/settings", Routes.systemSettings(cfg));
 
-//
-//            RoutingHandler routingHandler = Handlers.routing()
-//                    .get(BASE_REST_API_URL + "/health", Routes.health())
-//                    .get(BASE_REST_API_URL + "/auth", Routes.auth())
-//                    .get(BASE_REST_API_URL + "/contacts", Routes.contactGroups())
-//                    .get(BASE_REST_API_URL + "/services", Routes.monitoredServices())
-//                    .get(BASE_REST_API_URL + "/settings", Routes.systemSettings());
-////
 
             Undertow server = Undertow.builder()
                     .setServerOption(UndertowOptions.DECODE_URL, true)
@@ -50,7 +42,6 @@ public class RestApiServer {
                     .setWorkerThreads(cfg.server.workerThreads)
                     .addHttpListener(cfg.server.port, cfg.server.host)
                     .setHandler(new CORSHandler(pathHandler, "http://localhost:5173"))
-//                    .setHandler(new CORSHandler(routingHandler, "http://localhost:5173"))
                     .build();
 
 

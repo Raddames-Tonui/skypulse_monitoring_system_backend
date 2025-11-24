@@ -4,7 +4,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
 import org.skypulse.config.database.DatabaseManager;
-import org.skypulse.config.security.KeyProvider;
+import org.skypulse.utils.security.KeyProvider;
 import org.skypulse.utils.JsonUtil;
 
 import java.sql.Connection;

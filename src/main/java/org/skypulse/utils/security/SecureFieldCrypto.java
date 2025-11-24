@@ -1,4 +1,4 @@
-package org.skypulse.config.security;
+package org.skypulse.utils.security;
 
 import org.jetbrains.annotations.NotNull;
 

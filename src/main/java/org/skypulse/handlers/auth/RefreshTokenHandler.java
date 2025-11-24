@@ -5,8 +5,8 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.CookieImpl;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
-import org.skypulse.config.security.JwtUtil;
-import org.skypulse.config.security.TokenUtil;
+import org.skypulse.utils.security.JwtUtil;
+import org.skypulse.utils.security.TokenUtil;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.utils.ResponseUtil;
 import org.slf4j.Logger;
@@ -31,8 +31,8 @@ public class RefreshTokenHandler implements HttpHandler {
     public RefreshTokenHandler(XmlConfiguration cfg) {
         long access = 3600;
         long refresh = 30 * 24 * 3600;
-        try { access = Long.parseLong(cfg.jwt.accessToken) * 60; } catch(Exception ignored) {}
-        try { refresh = Long.parseLong(cfg.jwt.refreshToken) * 24 * 3600; } catch(Exception ignored) {}
+        try { access = Long.parseLong(cfg.jwtConfig.accessToken) * 60; } catch(Exception ignored) {}
+        try { refresh = Long.parseLong(cfg.jwtConfig.refreshToken) * 24 * 3600; } catch(Exception ignored) {}
         this.ACCESS_TOKEN_TTL = access;
         this.REFRESH_TOKEN_TTL = refresh;
     }

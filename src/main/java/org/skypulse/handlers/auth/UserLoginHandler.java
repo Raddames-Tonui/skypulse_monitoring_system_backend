@@ -8,11 +8,11 @@ import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserLoginRequest;
 import org.skypulse.config.utils.XmlConfiguration;
+import org.skypulse.rest.base.AuthMiddleware;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
-import org.skypulse.config.security.JwtUtil;
-import org.skypulse.config.security.PasswordUtil;
-import org.skypulse.config.security.TokenUtil;
+import org.skypulse.utils.security.PasswordUtil;
+import org.skypulse.utils.security.TokenUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,11 +29,11 @@ public class UserLoginHandler implements HttpHandler {
     private final long REFRESH_TOKEN_TTL;
 
     public UserLoginHandler(XmlConfiguration cfg) {
-        long accessToken = 15 * 60;        // min -> sec
-        long refreshToken = 30 * 24 * 3600; // days -> sec
+        long accessToken = 15 * 60;        // default 15 min
+        long refreshToken = 30 * 24 * 3600; // default 30 days
 
-        try { accessToken = Long.parseLong(cfg.jwt.accessToken) * 60; } catch (Exception ignored) {}
-        try { refreshToken = Long.parseLong(cfg.jwt.refreshToken) * 24 * 3600; } catch (Exception ignored) {}
+        try { accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60; } catch (Exception ignored) {}
+        try { refreshToken = Long.parseLong(cfg.jwtConfig.refreshToken) * 24 * 3600; } catch (Exception ignored) {}
 
         this.ACCESS_TOKEN_TTL = accessToken;
         this.REFRESH_TOKEN_TTL = refreshToken;
@@ -45,7 +45,7 @@ public class UserLoginHandler implements HttpHandler {
 
         if (req.email == null || req.email.isBlank() ||
                 req.password == null || req.password.isBlank()) {
-            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing required fields: email and password are required");
+            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing required fields: email and password");
             return;
         }
 
@@ -55,7 +55,6 @@ public class UserLoginHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // Fetch user
             String selectUser = """
                 SELECT user_id, uuid, password_hash, first_name, last_name, user_email, is_deleted, role_id
                 FROM users
@@ -92,14 +91,12 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // Verify password
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
                 logLoginFailure(conn, email, ipAddress, userAgent, "Invalid credentials");
                 ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Invalid credentials");
                 return;
             }
 
-            // Role name
             String roleName = "";
             if (roleId != null) {
                 try (PreparedStatement ps = conn.prepareStatement("SELECT role_name FROM roles WHERE role_id = ?")) {
@@ -111,6 +108,7 @@ public class UserLoginHandler implements HttpHandler {
             }
 
             Instant now = Instant.now();
+
             // Create auth_session
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
@@ -123,7 +121,6 @@ public class UserLoginHandler implements HttpHandler {
             """;
 
             UUID jwtId;
-            UUID authSessionId;
             try (PreparedStatement ps = conn.prepareStatement(insertAuth)) {
                 ps.setLong(1, userId);
                 ps.setString(2, refreshHash);
@@ -138,30 +135,26 @@ public class UserLoginHandler implements HttpHandler {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) throw new SQLException("Failed to create auth_session");
                     jwtId = (UUID) rs.getObject("jwt_id");
-                    authSessionId = (UUID) rs.getObject("auth_session_id");
                 }
             }
 
-            // Set cookie
-            CookieImpl cookie = new CookieImpl("refreshToken", refreshToken);
-            cookie.setHttpOnly(true);
-            cookie.setSecure(true);
-            cookie.setPath("/");
-            cookie.setMaxAge((int) REFRESH_TOKEN_TTL);
-            exchange.setResponseCookie(cookie);
+            AuthMiddleware.getUserByUuid(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL);
 
-            // Response
+            CookieImpl refreshCookie = new CookieImpl("refreshToken", refreshToken);
+            refreshCookie.setHttpOnly(true);
+            refreshCookie.setSecure(true);
+            refreshCookie.setPath("/");
+            refreshCookie.setMaxAge((int) REFRESH_TOKEN_TTL);
+            exchange.setResponseCookie(refreshCookie);
+
             Map<String, Object> userData = Map.of(
                     "uuid", userUuid,
                     "fullName", firstName + " " + lastName,
                     "email", email,
                     "role", roleName
             );
-            Map<String, Object> data = Map.of(
-                    "accessToken", JwtUtil.generateAccessTokenWithJti(userUuid.toString(), email, roleName, ACCESS_TOKEN_TTL, jwtId),
-                    "expiresIn", ACCESS_TOKEN_TTL,
-                    "user", userData
-            );
+
+            Map<String, Object> data = Map.of("user", userData);
 
             ResponseUtil.sendSuccess(exchange, "Login successful", data);
 

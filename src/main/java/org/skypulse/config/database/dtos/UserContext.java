@@ -18,8 +18,9 @@ public class UserContext {
     private final String email;
     private final Integer roleId;
     private final String roleName;
+    private final String companyName;
 
-    public UserContext(Long userId, UUID uuid, String firstName, String lastName, String email, Integer roleId, String roleName) {
+    public UserContext(Long userId, UUID uuid, String firstName, String lastName, String email, Integer roleId, String roleName,  String companyName) {
         this.userId = userId;
         this.uuid = uuid;
         this.firstName = firstName;
@@ -27,6 +28,7 @@ public class UserContext {
         this.email = email;
         this.roleId = roleId;
         this.roleName = roleName;
+        this.companyName = companyName;
     }
 
     public Long getUserId() { return userId; }
@@ -36,4 +38,5 @@ public class UserContext {
     public String getEmail() { return email; }
     public Integer getRoleId() { return roleId; }
     public String getRoleName() { return roleName; }
+    public String getCompanyName() { return companyName; }
 }

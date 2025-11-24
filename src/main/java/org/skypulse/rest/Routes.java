@@ -3,10 +3,12 @@ package org.skypulse.rest;
 import io.undertow.Handlers;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
-import org.skypulse.Main;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
-import org.skypulse.handlers.auth.*;
+import org.skypulse.handlers.auth.GetUserProfileHandler;
+import org.skypulse.handlers.auth.UserLoginHandler;
+import org.skypulse.handlers.auth.UserSignupHandler;
+import org.skypulse.handlers.auth.LogoutHandler;
 import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
 import org.skypulse.handlers.contacts.CreateContactGroupHandler;
 import org.skypulse.handlers.services.GetMonitoredServiceHandler;
@@ -18,48 +20,69 @@ import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
 
+import static org.skypulse.rest.base.RouteUtils.open;
+import static org.skypulse.rest.base.RouteUtils.secure;
+
 public class Routes {
 
     public static RoutingHandler auth(XmlConfiguration cfg) {
-        return Handlers.routing()
-                .post("/login", new Dispatcher(new BlockingHandler(new UserLoginHandler(cfg))))
-                .post("/register", new Dispatcher(new BlockingHandler(new UserSignupHandler())))
-                .post("/refresh", new Dispatcher(new BlockingHandler(new RefreshTokenHandler(cfg))))
-                .get("/profile", new Dispatcher( new BlockingHandler( new AuthMiddleware(new GetUserProfileHandler()))))
-                .post("/logout", new Dispatcher( new BlockingHandler( new LogoutHandler())))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
-    }
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
-    public static RoutingHandler health() {
         return Handlers.routing()
-                .get("/", new Dispatcher(new BlockingHandler(new HealthCheckHandler())))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
-    }
-
-    public static RoutingHandler contactGroups() {
-        return Handlers.routing()
-                .post("/groups", new Dispatcher(new BlockingHandler(new AuthMiddleware(new CreateContactGroupHandler()))))
-                .post("/groups/{id}/members", new Dispatcher(new BlockingHandler(new AuthMiddleware(new AddMembersToGroupHandler()))))
-                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
-                .setFallbackHandler(new Dispatcher(new FallBack()));
-    }
-
-    public static RoutingHandler monitoredServices() {
-        return Handlers.routing()
-                .get("/service", new Dispatcher(new BlockingHandler(new AuthMiddleware(new GetSingleMonitoredServiceHandler()))))
-                .get("/", new Dispatcher(new BlockingHandler(new AuthMiddleware(new GetMonitoredServiceHandler()))))
-                .post("/", new Dispatcher(new BlockingHandler(new AuthMiddleware(new MonitoredServiceHandler()))))
-                .put("/", new Dispatcher(new BlockingHandler(new AuthMiddleware(new MonitoredServiceHandler()))))
+                .post("/login", open(new UserLoginHandler(cfg)))
+                .post("/register", open(new UserSignupHandler()))
+                .get("/profile", secure(new GetUserProfileHandler(), accessTokenTtl))
+                .post("/logout", secure(new LogoutHandler(), accessTokenTtl))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
 
-    public static RoutingHandler systemSettings() {
+    public static RoutingHandler health(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
         return Handlers.routing()
-                .post("/", new Dispatcher(new BlockingHandler(new AuthMiddleware(new SystemSettingsHandlers()))))
+                .get("/", secure(new HealthCheckHandler(), accessTokenTtl))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
+
+
+    public static RoutingHandler contactGroups(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+
+                .post("/groups", secure(new CreateContactGroupHandler(), accessTokenTtl))
+                .post("/groups/{id}/members",secure(new AddMembersToGroupHandler(), accessTokenTtl))
+                .post("/groups/members/{uuid}", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
+
+
+    public static RoutingHandler monitoredServices(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+                .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
+                .get("/", secure(new GetMonitoredServiceHandler(), accessTokenTtl))
+                .post("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
+                .put("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
+
+
+    public static RoutingHandler systemSettings(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+                .post("/", new Dispatcher(
+                        new BlockingHandler(
+                                new AuthMiddleware(new SystemSettingsHandlers(), accessTokenTtl)
+                        )
+                ))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }

@@ -1,14 +1,11 @@
 package org.skypulse.handlers.auth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
+import org.apache.xpath.operations.Bool;
 import org.skypulse.config.database.DatabaseManager;
-import org.skypulse.utils.JsonUtil;
+import org.skypulse.config.database.dtos.UserContext;
 import org.skypulse.utils.ResponseUtil;
-import org.skypulse.config.security.JwtUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -17,87 +14,80 @@ import java.util.*;
 
 public class GetUserProfileHandler implements HttpHandler {
 
-    private static final Logger logger = LoggerFactory.getLogger(GetUserProfileHandler.class);
-    private final ObjectMapper mapper = JsonUtil.mapper();
-
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
 
-        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            ResponseUtil.sendError(exchange, 400, "Missing or invalid Authorization header");
+        UserContext ctx = exchange.getAttachment(UserContext.ATTACHMENT_KEY);
+        if (ctx == null) {
+            ResponseUtil.sendError(exchange, 401, "Unauthorized");
             return;
         }
 
-        String token = authHeader.substring("Bearer ".length());
-        String userUuid = JwtUtil.getUserUUId(token);
-        if (userUuid == null) {
-            ResponseUtil.sendError(exchange, 400, "Missing or invalid token");
-            return;
-        }
+        long userId = ctx.getUserId();
 
-        try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("uuid", ctx.getUuid().toString());
+        data.put("full_name", ctx.getFirstName() + " " + ctx.getLastName());
+        data.put("email", ctx.getEmail());
+        data.put("role_name", ctx.getRoleName());
+        data.put("role_id", ctx.getRoleId());
+        data.put("company_name", ctx.getCompanyName());
 
-            String userSql = """
-                SELECT u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, u.is_active, 
-                       u.role_id, r.role_name,
-                        up.alert_channel, up.receive_weekly_reports, 
-                       up.language, up.timezone, up.dashboard_layout
-                FROM users u
-                LEFT JOIN roles r ON r.role_id = u.role_id
-                LEFT JOIN user_preferences up ON up.user_id = u.user_id
-                WHERE u.uuid = ?::uuid
+        Map<String, Object> pref = new HashMap<>();
+        pref.put("alert_channel", "email");
+        pref.put("receive_weekly_reports", true);
+        pref.put("language", "en");
+        pref.put("timezone", "UTC");
+        pref.put("dashboard_layout", new HashMap<>());
+
+        List<Map<String, Object>> contacts = new ArrayList<>();
+
+
+        try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()){
+            String prefSql = """
+                SELECT alert_channel, receive_weekly_reports, language, timezone, dashboard_layout
+                FROM user_preferences
+                WHERE user_id = ?
             """;
-
-            long userId;
-            long roleId;
-            String firstName;
-            String lastName;
-            String email;
-            String roleName;
-            boolean isActive;
-
-            Map<String, Object> preferences = new HashMap<>();
-
-            try (PreparedStatement ps = conn.prepareStatement(userSql)) {
-                ps.setString(1, userUuid);
+            try (PreparedStatement ps = conn.prepareStatement(prefSql)) {
+                ps.setLong(1, userId);
                 try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) {
-                        ResponseUtil.sendError(exchange, 404, "User not found");
-                        return;
+                    if (rs.next()) {
+                        pref.put("alert_channel", rs.getString("alert_channel"));
+                        pref.put("receive_weekly_reports", rs.getBoolean("receive_weekly_reports"));
+                        pref.put("language", rs.getString("language"));
+                        pref.put("timezone", rs.getString("timezone"));
+                        Object layout = rs.getObject("dashboard_layout");
+                        if (layout != null) {
+                            pref.put("dashboard_layout", layout);
+                        }
                     }
-
-                    userId = rs.getLong("user_id");
-                    roleId = rs.getLong("role_id");
-                    firstName = rs.getString("first_name");
-                    lastName = rs.getString("last_name");
-                    email = rs.getString("user_email");
-                    roleName = rs.getString("role_name");
-                    isActive = rs.getBoolean("is_active");
-
-                    preferences.put("alert_channel", rs.getString("alert_channel"));
-                    preferences.put("receive_weekly_reports", rs.getBoolean("receive_weekly_reports"));
-                    preferences.put("language", rs.getString("language"));
-                    preferences.put("timezone", rs.getString("timezone"));
-                    preferences.put("dashboard_layout", rs.getString("dashboard_layout"));
                 }
             }
 
-
-
-            Map<String, Object> data = new HashMap<>();
-            data.put("uuid", userUuid);
-            data.put("full_name", firstName + lastName);
-            data.put("email", email);
-            data.put("role", roleName);
-            data.put("is_active", isActive);
-            data.put("preferences", preferences);
-
-            ResponseUtil.sendSuccess(exchange, "Profile fetched successfully", data);
-
-        } catch (Exception e) {
-            logger.error("Error fetching user profile", e);
-            ResponseUtil.sendError(exchange, 500, "Internal Server Error");
+            String contactsSql = """
+                SELECT type, value, verified, is_primary
+                FROM user_contacts
+                WHERE user_id = ?
+            """;
+            try (PreparedStatement ps = conn.prepareStatement(contactsSql)) {
+                ps.setLong(1, userId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Map<String, Object> cont = new HashMap<>();
+                        cont.put("contact_type", rs.getString("type"));
+                        cont.put("value", rs.getString("value"));
+                        cont.put("verified", rs.getBoolean("verified"));
+                        cont.put("is_primary", rs.getBoolean("is_primary"));
+                        contacts.add(cont);
+                    }
+                }
+            }
         }
+
+        data.put("user_preferences", pref);
+        data.put("user_contacts", contacts);
+
+        ResponseUtil.sendSuccess(exchange, "Profile fetched successfully", data);
     }
 }
