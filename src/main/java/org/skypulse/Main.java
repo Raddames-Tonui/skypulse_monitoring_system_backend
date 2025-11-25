@@ -11,13 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
+
 /**
  * Entry point
  * Load Configuration from Xml
  * Connects to Database
  * Register Tasks
  * */
-
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
@@ -32,6 +32,7 @@ public class Main {
             XmlConfiguration cfg = ConfigLoader.loadConfig(configPath);
             logger.debug("Configuration loaded from {}", configPath);
 
+
             if (cfg.notification != null && cfg.notification.email != null) {
                 XmlConfiguration.Notification.Email emailCfg = cfg.notification.email;
                 logger.info("Email config loaded: host={}, port={}, TLS={}, username={}, from={}",
@@ -43,6 +44,7 @@ public class Main {
             } else {
                 logger.warn("Email configuration is missing or incomplete!");
             }
+
 
             boolean dbAvailable = false;
             try {
@@ -56,7 +58,6 @@ public class Main {
             logger.info("[------------Starting Undertow server------------]");
             RestApiServer.startUndertow(cfg);
 
-            // --- Register tasks using ApplicationTasks ---
             registerApplicationTasks(dbAvailable, cfg);
             appScheduler.start();
 

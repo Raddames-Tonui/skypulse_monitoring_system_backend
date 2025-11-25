@@ -13,12 +13,20 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.skypulse.Main.appScheduler;
 
 public class ApplicationTasks {
 
     private static final Logger logger = LoggerFactory.getLogger(ApplicationTasks.class);
+
+    private static final AtomicInteger INIT_COUNT = new AtomicInteger(0);
+
+    public void init() {
+        int count = INIT_COUNT.incrementAndGet();
+        logger.warn("ApplicationTasks.init() called {} times", count);
+    }
 
     public static void registerApplicationTasks(boolean dbAvailable, XmlConfiguration cfg) {
         logger.info("[------------ Registering Services ------------]");
@@ -36,7 +44,7 @@ public class ApplicationTasks {
 
                     logger.info("[***** Registered {} Services for Up time check *****]", services.size());
 
-                    // 2. Register NOTIFICATION PROCESSOR TASK with system default Settings
+                    // 2. Register NOTIFICATION PROCESSOR TASK with system default Settings with sending platforms
                     MultiChannelSender sender = new MultiChannelSender();
                     sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
                     // sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
@@ -45,8 +53,6 @@ public class ApplicationTasks {
 
                     // 3. Register SSL MONITOR TASK
                     appScheduler.register(new SslExpiryMonitorTask(defaultSettings));
-
-
                 } catch (Exception e) {
                     logger.error("Failed to register DB-backed tasks", e);
                 }
@@ -55,7 +61,6 @@ public class ApplicationTasks {
 
         appScheduler.setTaskLoader(taskLoader);
         taskLoader.run();
-        appScheduler.start();
 
         logger.info("[------------ Application tasks registered ------------]");
     }

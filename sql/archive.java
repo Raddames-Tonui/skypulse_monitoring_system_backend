@@ -1,328 +1,152 @@
-package org.skypulse.services.tasks;
+package org.skypulse.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.skypulse.services.ScheduledTask;
-import org.skypulse.config.database.dtos.SystemSettings;
-import org.skypulse.config.database.JdbcUtils;
-import org.skypulse.utils.JsonUtil;
-import org.skypulse.utils.SslUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.undertow.server.handlers.sse.ServerSentEventConnection;
+import io.undertow.server.handlers.sse.ServerSentEventConnectionCallback;
+import io.undertow.server.handlers.sse.ServerSentEventHandler;
+import org.skypulse.config.database.DatabaseManager;
+import org.skypulse.utils.security.KeyProvider;
 
 import java.sql.Connection;
-import java.sql.Date;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZonedDateTime;
-import java.util.*;
-import java.util.concurrent.*;
-import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-public class SslExpiryMonitorTask implements ScheduledTask {
+public class SseHealthCheckHandler implements ServerSentEventConnectionCallback {
 
-    private static final Logger logger = LoggerFactory.getLogger(SslExpiryMonitorTask.class);
-    private static final ObjectMapper mapper = JsonUtil.mapper();
+    private static final Instant START_TIME = Instant.now();
+    private final Set<ServerSentEventConnection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final ServerSentEventHandler handler;
 
-    private static final int THREADS = 5;
+    public SseHealthCheckHandler() {
+        this.handler = new ServerSentEventHandler(this);
+        // Start a background task to push updates periodically
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        // Update interval can be adjusted
+        scheduler.scheduleAtFixedRate(this::pushHealthStatusToAll, 0, 5, TimeUnit.SECONDS);
+    }
 
-    private final long sslCheckIntervalSeconds;
-    private final List<Integer> alertThresholds;
-
-    private final SystemSettings.SystemDefaults defaults;
-
-
-    public SslExpiryMonitorTask(SystemSettings.SystemDefaults defaults) {
-        this.defaults = defaults;
-
-        // Interval: system → fallback → minimum
-        int interval = defaults.sslCheckInterval();
-        if (interval <= 0) interval = 60 * 60 * 6;     // fallback 6 hours
-        this.sslCheckIntervalSeconds = interval;
-
-        // Alert thresholds with fallback
-        List<Integer> th = defaults.sslAlertThresholds();
-        this.alertThresholds = (th != null && !th.isEmpty())
-                ? th
-                : List.of(30, 14, 7, 3);
-
-        logger.info("[------- SSL Monitor initialized: interval={} minutes thresholds={} ----------]",
-                sslCheckIntervalSeconds / 60.0,
-                alertThresholds);
-
+    public ServerSentEventHandler getHandler() {
+        return handler;
     }
 
     @Override
-    public String name() {
-        return "[ SslExpiryMonitorTask ]";
+    public void connected(ServerSentEventConnection connection) {
+        connections.add(connection);
+        // Add a close task to clean up when a client disconnects
+        connection.addCloseTask(conn -> connections.remove(conn));
+        // Send initial status immediately upon connection
+        pushHealthStatus(connection);
+        System.out.println("New SSE connection established. Total connections: " + connections.size());
     }
 
-    @Override
-    public long intervalSeconds() {
-        return sslCheckIntervalSeconds;
-    }
-
-    @Override
-    public void execute() {
-        logger.info("Starting SslExpiryMonitorTask");
-
-        List<Map<String, Object>> services = new ArrayList<>();
-
-        try (Connection c = JdbcUtils.getConnection()) {
-            String sql =
-                    "SELECT monitored_service_id, monitored_service_name, monitored_service_url " +
-                            "FROM monitored_services WHERE ssl_enabled = TRUE AND is_active = TRUE";
-
-            try (PreparedStatement ps = c.prepareStatement(sql);
-                 ResultSet rs = ps.executeQuery()) {
-
-                while (rs.next()) {
-                    Map<String, Object> svc = new HashMap<>();
-                    svc.put("id", rs.getLong("monitored_service_id"));
-                    svc.put("name", rs.getString("monitored_service_name"));
-                    svc.put("url", rs.getString("monitored_service_url"));
-                    services.add(svc);
-                }
-            }
-
-        } catch (Exception e) {
-            logger.error("Failed to load services: {}", e.getMessage(), e);
-            return;
-        }
-
-        try (ExecutorService executor = Executors.newFixedThreadPool(THREADS)) {
-            try {
-                List<Future<?>> futures = new ArrayList<>();
-
-                for (Map<String, Object> svc : services) {
-                    futures.add(executor.submit(() -> checkService(
-                            (Long) svc.get("id"),
-                            (String) svc.get("name"),
-                            (String) svc.get("url")
-                    )));
-                }
-
-                for (Future<?> f : futures) {
-                    try {
-                        f.get();
-                    } catch (Exception e) {
-                        logger.error("SSL check task failed: {}", e.getMessage(), e);
-                    }
-                }
-            } finally {
-                executor.shutdown();
-            }
-        }
-        logger.info("SslExpiryMonitorTask completed");
-    }
-
-    // PER-SERVICE CHECK
-    private void checkService(long serviceId, String serviceName, String url) {
-        String host = extractHost(url);
-        if (host == null || host.isBlank()) {
-            logger.warn("Invalid host for service {}: {}", serviceName, url);
-            return;
-        }
-
-        try (Connection c = JdbcUtils.getConnection()) {
-            c.setAutoCommit(false);
-
-            X509Certificate cert = SslUtils.getServerCert(host, 443);
-            if (cert == null) {
-                logger.warn("No certificate found for host {}", host);
-                upsertSslLogFailure(c, serviceId, host);
-                return;
-            }
-
-            Map<String, Object> certInfo = SslUtils.extractCertInfo(cert);
-
-            ZonedDateTime expiry = ZonedDateTime.ofInstant(
-                    cert.getNotAfter().toInstant(),
-                    ZonedDateTime.now().getZone()
-            );
-
-            int daysLeft = (int) Duration.between(ZonedDateTime.now(), expiry).toDays();
-
-            upsertSslLog(c, serviceId, host, certInfo, expiry, daysLeft);
-            checkAndCreateAlerts(c, serviceId, serviceName, host, certInfo, daysLeft);
-
-            c.commit();
-
-        } catch (Exception e) {
-            logger.error("SSL check failed for service ({}) {} [{}] : {}",
-                    serviceId, serviceName, url, e.getMessage(), e);
+    private void pushHealthStatusToAll() {
+        for (ServerSentEventConnection connection : connections) {
+            pushHealthStatus(connection);
         }
     }
 
-    private void upsertSslLog(Connection c, long serviceId, String host, Map<String, Object> certInfo,
-                              ZonedDateTime expiry, int daysRemaining) throws SQLException {
-
-        String update = """
-                UPDATE ssl_logs SET
-                    issuer = ?, serial_number = ?, signature_algorithm = ?, public_key_algo = ?, public_key_length = ?,
-                    san_list = ?, chain_valid = ?, subject = ?, fingerprint = ?, issued_date = ?, expiry_date = ?,
-                    days_remaining = ?, last_checked = now(), date_modified = now()
-                WHERE monitored_service_id = ? AND domain = ?
-                """;
-
-        try (PreparedStatement ps = c.prepareStatement(update)) {
-            ps.setString(1, (String) certInfo.get("issuer"));
-            ps.setString(2, (String) certInfo.get("serial_number"));
-            ps.setString(3, (String) certInfo.get("sig_algo"));
-            ps.setString(4, (String) certInfo.get("pub_algo"));
-            ps.setInt(5, (Integer) certInfo.get("pub_len"));
-            ps.setString(6, (String) certInfo.get("sans"));
-            ps.setBoolean(7, (Boolean) certInfo.get("chain_valid"));
-            ps.setString(8, (String) certInfo.get("subject"));
-            ps.setString(9, (String) certInfo.get("fingerprint"));
-            ps.setDate(10, new Date(((java.util.Date) certInfo.get("issued_date")).getTime()));
-            ps.setDate(11, new Date(((java.util.Date) certInfo.get("expiry_date")).getTime()));
-            ps.setInt(12, daysRemaining);
-            ps.setLong(13, serviceId);
-            ps.setString(14, host);
-
-            if (ps.executeUpdate() > 0) return;
-        }
-
-        String insert = """
-                INSERT INTO ssl_logs(
-                    monitored_service_id, domain, issuer, serial_number, signature_algorithm,
-                    public_key_algo, public_key_length, san_list, chain_valid,
-                    subject, fingerprint, issued_date, expiry_date, days_remaining,
-                    last_checked, date_created, date_modified
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), now(), now()
-                )
-                """;
-
-        try (PreparedStatement ps = c.prepareStatement(insert)) {
-            ps.setLong(1, serviceId);
-            ps.setString(2, host);
-            ps.setString(3, (String) certInfo.get("issuer"));
-            ps.setString(4, (String) certInfo.get("serial_number"));
-            ps.setString(5, (String) certInfo.get("sig_algo"));
-            ps.setString(6, (String) certInfo.get("pub_algo"));
-            ps.setInt(7, (Integer) certInfo.get("pub_len"));
-            ps.setString(8, (String) certInfo.get("sans"));
-            ps.setBoolean(9, (Boolean) certInfo.get("chain_valid"));
-            ps.setString(10, (String) certInfo.get("subject"));
-            ps.setString(11, (String) certInfo.get("fingerprint"));
-            ps.setDate(12, new Date(((java.util.Date) certInfo.get("issued_date")).getTime()));
-            ps.setDate(13, new Date(((java.util.Date) certInfo.get("expiry_date")).getTime()));
-            ps.setInt(14, daysRemaining);
-            ps.executeUpdate();
-        }
+    private void pushHealthStatus(ServerSentEventConnection connection) {
+        Map<String, Object> status = generateCurrentStatus();
+        // Convert map to a JSON string or similar format for the message data
+        String jsonData = generateJson(status);
+        connection.send(jsonData);
     }
 
-    private void checkAndCreateAlerts(Connection c, long serviceId, String serviceName, String host,
-                                      Map<String, Object> certInfo, int daysLeft) throws SQLException {
+    // Simplified health status generation (without background tasks query for brevity)
+    private Map<String, Object> generateCurrentStatus() {
+        // ... (Logic from your original handler to get basic info) ...
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("app", "SkyPulse REST API");
+        response.put("version", "1.0.0");
+        response.put("environment", KeyProvider.getEnvironment());
+        response.put("uptime_seconds", Duration.between(START_TIME, Instant.now()).toSeconds());
+        response.put("timestamp", Instant.now().toString());
 
-        for (int threshold : alertThresholds) {
-            if (daysLeft <= threshold && !alertAlreadySent(c, serviceId, threshold)) {
-                insertAlertRecord(c, serviceId, threshold);
-                createSslExpiryEvent(
-                        c, serviceId, serviceName, host,
-                        (String) certInfo.get("issuer"),
-                        daysLeft, threshold
-                );
-            }
+        // Database health check
+        boolean dbOK = false;
+        if (DatabaseManager.isInitialized()) {
+            try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
+                dbOK = conn.isValid(2);
+            } catch (SQLException ignored) {}
         }
+        response.put("database_status", dbOK ? "connected" : "unavailable");
+
+        return response;
     }
 
-    private boolean alertAlreadySent(Connection c, long serviceId, int threshold) throws SQLException {
-        String sql = "SELECT 1 FROM ssl_alerts WHERE monitored_service_id = ? AND days_remaining = ?";
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, serviceId);
-            ps.setInt(2, threshold);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        }
-    }
-
-    private void insertAlertRecord(Connection c, long serviceId, int threshold) throws SQLException {
-        String sql =
-                "INSERT INTO ssl_alerts(monitored_service_id, days_remaining, sent_at) " +
-                        "VALUES (?, ?, now()) ON CONFLICT DO NOTHING";
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, serviceId);
-            ps.setInt(2, threshold);
-            ps.executeUpdate();
-        }
-    }
-
-    private void createSslExpiryEvent(Connection c, long serviceId, String serviceName,
-                                      String host, String issuer, int daysLeft, int threshold) {
-
-        String eventType = "SSL_EXPIRING";
-
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("service_id", serviceId);
-        payload.put("service_name", serviceName);
-        payload.put("domain", host);
-        payload.put("issuer", issuer);
-        payload.put("days_remaining", daysLeft);
-        payload.put("threshold", threshold);
-        payload.put("checked_at", OffsetDateTime.now().toString());
-
-        String sql =
-                "INSERT INTO event_outbox(event_type, payload, status, retries, created_at, updated_at) " +
-                        "VALUES (?, ?::jsonb, 'PENDING', 0, now(), now())";
-
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, eventType);
-            ps.setString(2, mapper.writeValueAsString(payload));
-            ps.executeUpdate();
-
-            logger.info(
-                    "SSL alert event created for service {} | threshold {} | daysLeft {}",
-                    serviceName, threshold, daysLeft
-            );
-
-        } catch (Exception e) {
-            logger.error("Failed to create SSL expiry event: {}", e.getMessage(), e);
-        }
-    }
-
-    private String extractHost(String url) {
-        try {
-            String cleaned = url.replaceFirst("^https?://", "");
-            int slash = cleaned.indexOf('/');
-            String host = (slash >= 0) ? cleaned.substring(0, slash) : cleaned;
-
-            int at = host.lastIndexOf('@');
-            if (at >= 0) host = host.substring(at + 1);
-
-            int colon = host.indexOf(':');
-            return (colon >= 0) ? host.substring(0, colon) : host;
-
-        } catch (Exception e) {
-            return url;
-        }
-    }
-
-    private void upsertSslLogFailure (Connection conn,  long serviceId, String host) throws SQLException {
-        String update = """
-                UPDATE ssl_logs SET last_checked = now(), days_remaining = -1, date_modified = now()
-                WHERE monitored_service_id = ? AND domain = ?
-                """;
-
-        try (PreparedStatement ps = conn.prepareStatement(update)) {
-            ps.setLong(1, serviceId);
-            ps.setString(2, host);
-            if (ps.executeUpdate() >  0) return;
-        }
-        String insert = """
-                INSERT INTO ssl_logs(monitored_service_id, domain, days_remaining, last_checked, date_created, date_modified)
-                VALUES (?, ?, -1, now(), now(), now())
-                """;
-
-        try (PreparedStatement ps = conn.prepareStatement(insert)) {
-            ps.setLong(1, serviceId);
-            ps.setString(2, host);
-            ps.executeUpdate();
-        }
+    // Placeholder for your JSON serialization logic
+    private String generateJson(Map<String, Object> data) {
+        // Use your existing JsonUtil or GSON/Jackson to serialize the map
+        return org.skypulse.utils.JsonUtil.toJson(data);
     }
 }
+</code>
+
+        ### 2. Update Your Routing
+
+In your main application setup (where you define your paths and handlers), you would replace the original handler with the new SSE handler:
+
+        ```java
+import io.undertow.Handlers;
+import io.undertow.Undertow;
+// ... other imports
+
+public class App {
+    public static void main(String[] args) {
+        SseHealthCheckHandler sseHealthHandler = new SseHealthCheckHandler();
+
+        Undertow server = Undertow.builder()
+                .addHttpListener(8080, "localhost")
+                .setHandler(Handlers.path()
+                                // Original health endpoint
+                                // .addExactPath("/api/health", new HealthCheckHandler())
+
+                                // New SSE endpoint
+                                .addExactPath("/api/health-stream", sseHealthHandler.getHandler())
+                        // ... other paths
+                ).build();
+
+        server.start();
+    }
+}
+</code>
+
+        ### Client Side (JavaScript)
+
+Your client-side code will now use the browser's built-in `EventSource` API to listen for these updates:
+
+        ```html
+        <!DOCTYPE html>
+<html>
+<body>
+<h1>SSE Health Check Stream</h1>
+<pre id="output"></pre>
+
+<script>
+// Point the EventSource to the new SSE endpoint
+    const eventSource = new EventSource('/api/health-stream');
+    const output = document.getElementById('output');
+
+eventSource.onmessage = function(event) {
+    // Append new data as it arrives
+    output.textContent = "Update received at " + new Date().toLocaleTimeString() + ":\n" +
+            JSON.stringify(JSON.parse(event.data), null, 2) + "\n\n" +
+            output.textContent;
+};
+
+eventSource.onerror = function(err) {
+    console.error("EventSource failed:", err);
+    eventSource.close();
+};
+</script>
+
+</body>
+</html>

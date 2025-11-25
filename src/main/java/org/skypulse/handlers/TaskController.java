@@ -3,7 +3,6 @@ package org.skypulse.handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.rest.auth.RequireRoles;
-import org.skypulse.rest.auth.SecureHandler;
 import org.skypulse.services.TaskScheduler;
 import org.skypulse.utils.JsonUtil;
 

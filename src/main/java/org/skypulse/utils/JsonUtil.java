@@ -4,6 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+/**
+ * Replace: Map<String, Object> body = JsonUtil.mapper().readValue(is, Map.class);
+ * with
+ * Map<String, Object> body =
+ *         JsonUtil.mapper().readValue(is, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+ * to remove:
+ *    -  unchecked assignment warnings
+ *     - raw type warnings
+ *      - IDE yellow highlights
+ * **/
+
 public class JsonUtil {
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule())
@@ -16,13 +27,3 @@ public class JsonUtil {
 
 
 
-/**
- * Replace: Map<String, Object> body = JsonUtil.mapper().readValue(is, Map.class);
- * with
- * Map<String, Object> body =
- *         JsonUtil.mapper().readValue(is, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
- * to remove:
- *    -  unchecked assignment warnings
- *     - raw type warnings
- *      - IDE yellow highlights
- * **/

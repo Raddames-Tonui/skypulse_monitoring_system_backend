@@ -5,6 +5,7 @@ import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
+import org.skypulse.handlers.SseHealthCheckHandler;
 import org.skypulse.handlers.TaskController;
 import org.skypulse.handlers.auth.GetUserProfileHandler;
 import org.skypulse.handlers.auth.UserLoginHandler;
