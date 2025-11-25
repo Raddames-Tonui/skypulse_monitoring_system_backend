@@ -32,7 +32,7 @@ public class SecureHandler implements HttpHandler {
         String  role = ctx.getRoleName().toUpperCase();
 
         if (!allowedRoles.contains(role)) {
-            ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "Insufficient permissions");
+            ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "User not Authorized");
             return;
         }
 

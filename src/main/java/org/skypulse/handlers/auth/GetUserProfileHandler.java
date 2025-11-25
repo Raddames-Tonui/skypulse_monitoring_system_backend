@@ -30,7 +30,6 @@ public class GetUserProfileHandler implements HttpHandler {
         data.put("full_name", ctx.getFirstName() + " " + ctx.getLastName());
         data.put("email", ctx.getEmail());
         data.put("role_name", ctx.getRoleName());
-        data.put("role_id", ctx.getRoleId());
         data.put("company_name", ctx.getCompanyName());
 
         Map<String, Object> pref = new HashMap<>();

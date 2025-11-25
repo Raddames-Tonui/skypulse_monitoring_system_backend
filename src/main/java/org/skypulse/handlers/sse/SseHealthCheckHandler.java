@@ -5,8 +5,11 @@ import io.undertow.server.handlers.sse.ServerSentEventConnection;
 import io.undertow.server.handlers.sse.ServerSentEventConnectionCallback;
 import io.undertow.server.handlers.sse.ServerSentEventHandler;
 import org.skypulse.config.database.DatabaseManager;
+import org.skypulse.rest.auth.RequireRoles;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.security.KeyProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -20,18 +23,30 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+
+//@RequireRoles({"ADMIN", "OPERATOR", "VIEWER"})
 public class SseHealthCheckHandler implements ServerSentEventConnectionCallback {
 
+    private final Logger logger = LoggerFactory.getLogger(SseHealthCheckHandler.class);
     private static final Instant START_TIME = Instant.now();
-    // Use the ConcurrentHashMap directly as the underlying map for thread safety
     private final Set<ServerSentEventConnection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ServerSentEventHandler handler;
 
+    private final ScheduledExecutorService scheduler;
+
     public SseHealthCheckHandler() {
         this.handler = new ServerSentEventHandler(this);
-        // Start a background task to push updates periodically every 5 seconds
-        try (ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor()) {
-            scheduler.scheduleAtFixedRate(this::pushHealthStatusToAll, 0, 10, TimeUnit.SECONDS);
+        this.scheduler = Executors.newSingleThreadScheduledExecutor();
+        this.scheduler.scheduleAtFixedRate(this::pushHealthStatusToAll, 0, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Optional: A method to gracefully shut down the scheduler when the application closes.
+     */
+    public void shutdown() {
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdown();
+            logger.info("SseHealthCheckHandler scheduler shut down.");
         }
     }
 
@@ -42,10 +57,9 @@ public class SseHealthCheckHandler implements ServerSentEventConnectionCallback 
     @Override
     public void connected(ServerSentEventConnection connection, String lastEventId) {
         connections.add(connection);
-        // Use method reference for cleaner code
         connection.addCloseTask(connections::remove);
-        pushHealthStatus(connection); // Send initial status immediately
-        System.out.println("New SSE connection established (Last Event ID: " + lastEventId + "). Total connections: " + connections.size());
+        pushHealthStatus(connection);
+        logger.info("New SSE connection established (Last Event ID: {}). Total connections: {}", lastEventId, connections.size());
     }
 
     private void pushHealthStatusToAll() {
@@ -63,7 +77,6 @@ public class SseHealthCheckHandler implements ServerSentEventConnectionCallback 
         }
     }
 
-    // Renamed from pushHealthStatus to a private method that handles the actual sending
     private void pushHealthStatus(ServerSentEventConnection connection) {
         Map<String, Object> status = generateCurrentStatus();
         String jsonData = generateJson(status);
@@ -76,6 +89,7 @@ public class SseHealthCheckHandler implements ServerSentEventConnectionCallback 
      * Gathers all health data, including the detailed background tasks query.
      */
     private Map<String, Object> generateCurrentStatus() {
+        // Use LinkedHashMap to maintain insertion order for predictable JSON output
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("app", "SkyPulse REST API");
         response.put("version", "1.0.0");
@@ -90,6 +104,7 @@ public class SseHealthCheckHandler implements ServerSentEventConnectionCallback 
                 dbOK = conn.isValid(2);
             } catch (SQLException ignored) {}
         }
+        response.put("database", "PostgreSQL");
         response.put("database_status", dbOK ? "connected" : "unavailable");
 
         // Background tasks status (integrated from the original handler)
@@ -107,7 +122,7 @@ public class SseHealthCheckHandler implements ServerSentEventConnectionCallback 
                     task.put("name", rs.getString("task_name"));
                     task.put("type", rs.getString("task_type"));
                     task.put("status", rs.getString("status"));
-                    // Note: Jackson will need to handle java.sql.Timestamp serialization
+                    // Note: Jackson will handle java.sql.Timestamp serialization correctly due to JsonUtil config
                     task.put("last_run_at", rs.getTimestamp("last_run_at"));
                     task.put("next_run_at", rs.getTimestamp("next_run_at"));
                     task.put("error_message", rs.getString("error_message"));
@@ -116,6 +131,7 @@ public class SseHealthCheckHandler implements ServerSentEventConnectionCallback 
 
             } catch (SQLException e) {
                 response.put("tasks_error", "Failed to query background tasks: " + e.getMessage());
+                logger.error("SQL error in generateCurrentStatus: {}", e.getMessage());
             }
         }
 
@@ -129,7 +145,7 @@ public class SseHealthCheckHandler implements ServerSentEventConnectionCallback 
             // Use the ObjectMapper instance to write the object as a string
             return JsonUtil.mapper().writeValueAsString(data);
         } catch (JsonProcessingException e) {
-            System.err.println("Error serializing health data: " + e.getMessage());
+            logger.error("Error serializing health data: {}", e.getMessage());
             return null; // Handle the error gracefully
         }
     }

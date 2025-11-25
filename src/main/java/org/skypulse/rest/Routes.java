@@ -2,10 +2,8 @@ package org.skypulse.rest;
 
 import io.undertow.Handlers;
 import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
-import org.skypulse.handlers.SseHealthCheckHandler;
 import org.skypulse.handlers.TaskController;
 import org.skypulse.handlers.auth.GetUserProfileHandler;
 import org.skypulse.handlers.auth.UserLoginHandler;
@@ -17,7 +15,8 @@ import org.skypulse.handlers.services.GetMonitoredServiceHandler;
 import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
-import org.skypulse.rest.base.AuthMiddleware;
+import org.skypulse.handlers.sse.SseHealthCheckHandler;
+import org.skypulse.handlers.sse.SseServiceStatusHandler;
 import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
@@ -45,8 +44,12 @@ public class Routes {
     public static RoutingHandler health(XmlConfiguration cfg) {
         long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
+        SseHealthCheckHandler sseHealthCheckHandler = new SseHealthCheckHandler();
+
+
         return Handlers.routing()
                 .get("/health", secure(new HealthCheckHandler(), accessTokenTtl))
+                .get("/health/stream", secure(sseHealthCheckHandler.getHandler(), accessTokenTtl))
                 .get("/tasks/reload", secure(build(new TaskController(appScheduler)), accessTokenTtl))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
@@ -87,4 +90,20 @@ public class Routes {
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
+
+
+    public static RoutingHandler serverSentEvents(XmlConfiguration cfg) {
+        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        SseHealthCheckHandler sseHealthCheckHandler = new SseHealthCheckHandler();
+        SseServiceStatusHandler sseServiceStatusHandler = new SseServiceStatusHandler();
+
+        return Handlers.routing()
+                .get("/health/stream", secure(sseHealthCheckHandler.getHandler(), accessTokenTtl))
+                .get("/service-status", open(sseServiceStatusHandler.getHandler()))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
+
+
 }

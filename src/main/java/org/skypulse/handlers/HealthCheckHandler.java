@@ -22,7 +22,7 @@ import java.util.*;
  *          -  database status,
  *          -  background task statuses.
  */
-@RequireRoles({"ADMIN", "OPERATOR"})
+@RequireRoles({"ADMIN", "OPERATOR", "VIEWER"})
 public class HealthCheckHandler implements HttpHandler {
 
     private static final Instant START_TIME = Instant.now();

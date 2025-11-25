@@ -8,7 +8,7 @@ import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserLoginRequest;
 import org.skypulse.config.utils.XmlConfiguration;
-import org.skypulse.rest.base.AuthMiddleware;
+import org.skypulse.rest.auth.AuthMiddleware;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
 import org.skypulse.utils.security.PasswordUtil;

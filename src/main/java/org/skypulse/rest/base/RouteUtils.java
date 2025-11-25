@@ -2,6 +2,7 @@ package org.skypulse.rest.base;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import org.skypulse.rest.auth.AuthMiddleware;
 
 public class RouteUtils {
 
