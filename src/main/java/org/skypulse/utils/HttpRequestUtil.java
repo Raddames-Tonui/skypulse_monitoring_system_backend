@@ -15,7 +15,6 @@ public class HttpRequestUtil {
 
     public static Map<String, Object> parseJson(HttpServerExchange exchange)  {
         try (InputStream is = exchange.getInputStream()) {
-            // Jackson needs a TypeReference to preserve generics
             return JsonUtil.mapper().readValue(is, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid JSON: " + e.getMessage());
@@ -42,9 +41,7 @@ public class HttpRequestUtil {
         return Long.parseLong(value.toString());
     }
 
-    /**
-     * Convert a Map<String, Object> to JSON string
-     */
+    // Convert a Map<String, Object> to JSON string
     public static String toJsonString(Map<String, Object> map) {
         try {
             return JsonUtil.mapper().writeValueAsString(map);

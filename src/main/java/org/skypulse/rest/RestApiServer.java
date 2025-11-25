@@ -5,7 +5,6 @@ import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.server.handlers.PathHandler;
 import org.skypulse.config.utils.XmlConfiguration;
-import org.skypulse.handlers.sse.SseHealthCheckHandler;
 import org.skypulse.rest.base.CORSHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,8 +24,6 @@ public class RestApiServer {
         try {
             String BASE_REST_API_URL = cfg.server.basePath;
 
-//            SseHealthCheckHandler sseHealthCheckHandler = new SseHealthCheckHandler();
-
             PathHandler pathHandler = Handlers.path()
                     .addPrefixPath(BASE_REST_API_URL + "/system", Routes.health(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth(cfg))
@@ -35,7 +32,6 @@ public class RestApiServer {
                     .addPrefixPath(BASE_REST_API_URL+"/settings", Routes.systemSettings(cfg))
                     .addPrefixPath(BASE_REST_API_URL+"/sse", Routes.serverSentEvents(cfg));
 
-//                    .addPrefixPath(BASE_REST_API_URL + "/system/health/stream", sseHealthCheckHandler.getHandler());
 
 
 
@@ -54,15 +50,9 @@ public class RestApiServer {
             server.start();
             logger.info("""
                                               \s
-                                                   .---.           .---.
-                                                  /     \\\\\\\\  __   //     \\\\\\\\
-                                                 / /     \\\\\\\\(o o)//     \\\\ \\\\\\\\
-                                                //////   '\\\\\\\\ ^ //'      \\\\\\\\\\\\\\\\
-                                               //// / // :     :   \\\\\\\\  \\\\ \\\\\\\\\\\\\\\\
-                                              // /   /  /`----'\\\\      \\\\   \\\\ \\\\\\\\
-                                                        \\\\\\\\..////
+                                                        \\\\\\\\***////
                                         =================UU====UU====================
-                                                         '//||||\\\\\\\\`
+                                                         ////***\\\\\\\\
                                                            ''''
                                         SKYPULSE MONITORING REST API
                                         --------------------------------------
@@ -72,7 +62,7 @@ public class RestApiServer {
                     cfg.server.host, cfg.server.port, cfg.server.basePath);
 
         } catch (Exception e){
-            logger.error("Error starting server: {}", e.getMessage());
+            logger.error("Error starting server: {}", e.getMessage(), e);
             System.exit(-1);
         }
     }

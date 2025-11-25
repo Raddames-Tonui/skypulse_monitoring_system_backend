@@ -54,7 +54,7 @@ public final class SslUtils {
         } else if (pk instanceof java.security.interfaces.ECPublicKey ec) {
             keySize = ec.getParams().getCurve().getField().getFieldSize();
         } else {
-            keySize = pk.getEncoded().length * 8; // fallback
+            keySize = pk.getEncoded().length * 8;
         }
         info.put("pub_len", keySize);
 
@@ -89,24 +89,5 @@ public final class SslUtils {
         }
         sb.setLength(sb.length() - 1); // remove trailing colon
         return sb.toString();
-    }
-
-    /**
-     * (Optional) direct expiry helper.
-     */
-    public static ZonedDateTime getCertExpiry(String host, int port) throws Exception {
-        X509Certificate cert = getServerCert(host, port);
-        if (cert == null) return null;
-        Instant expires = cert.getNotAfter().toInstant();
-        return ZonedDateTime.ofInstant(expires, ZoneOffset.UTC);
-    }
-
-    /**
-     * (Optional) direct issuer helper.
-     */
-    public static String getCertIssuer(String host, int port) throws Exception {
-        X509Certificate cert = getServerCert(host, port);
-        if (cert == null) return "Unknown Issuer";
-        return cert.getIssuerX500Principal().getName();
     }
 }

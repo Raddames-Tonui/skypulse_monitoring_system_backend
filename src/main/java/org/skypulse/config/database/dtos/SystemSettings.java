@@ -1,44 +1,50 @@
 package org.skypulse.config.database.dtos;
 
 import org.skypulse.config.database.JdbcUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-/**
- * Loads system-wide default Settings and active monitored services
- *
- */
 public final class SystemSettings {
+
+    private static final Logger logger = LoggerFactory.getLogger(SystemSettings.class);
+    private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    private static volatile SystemDefaults cachedDefaults;
+    private static volatile List<ServiceConfig> cachedServices;
 
     private SystemSettings() {}
 
-    // Holds system-wide defaults
     public record SystemDefaults(
             long systemSettingId,
             String key,
-            String value,
             String description,
             int uptimeCheckInterval,
             int uptimeRetryCount,
             int uptimeRetryDelay,
+            int ssePushInterval,
             int sslCheckInterval,
             List<Integer> sslAlertThresholds,
+            int sslRetryCount,
+            int sslRetryDelay,
             int notificationCheckInterval,
             int notificationRetryCount,
             int notificationCooldownMinutes,
-            int sslRetryCount,
-            int sslRetryDelay,
             int version,
             boolean isActive,
+            Long changedBy,
             Timestamp dateCreated,
             Timestamp dateModified
     ) {}
 
-    // Per-service configuration
     public record ServiceConfig(
             long serviceId,
             UUID uuid,
@@ -59,8 +65,7 @@ public final class SystemSettings {
             boolean isActive
     ) {}
 
-    // Fetch system-wide default Settings from DB
-    public static SystemDefaults loadSystemDefaults(Connection conn) throws Exception {
+    public static SystemDefaults loadSystemDefaultsFromDB(Connection conn) throws Exception {
         String sql = "SELECT * FROM system_settings LIMIT 1";
         try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -78,11 +83,11 @@ public final class SystemSettings {
                 return new SystemDefaults(
                         rs.getLong("system_setting_id"),
                         rs.getString("key"),
-                        rs.getString("value"),
                         rs.getString("description"),
                         rs.getInt("uptime_check_interval"),
                         rs.getInt("uptime_retry_count"),
                         rs.getInt("uptime_retry_delay"),
+                        rs.getInt("sse_push_interval"),
                         rs.getInt("ssl_check_interval"),
                         thresholds,
                         rs.getInt("ssl_retry_count"),
@@ -92,37 +97,37 @@ public final class SystemSettings {
                         rs.getInt("notification_cooldown_minutes"),
                         rs.getInt("version"),
                         rs.getBoolean("is_active"),
+                        rs.getObject("changed_by") != null ? rs.getLong("changed_by") : null,
                         rs.getTimestamp("date_created"),
                         rs.getTimestamp("date_modified")
                 );
             }
         }
 
-        // fallback defaults
         return new SystemDefaults(
                 0L,
                 "default",
-                null,
                 "Fallback defaults",
                 5,
                 3,
                 5,
+                60,
                 360,
                 Arrays.asList(30, 14, 7, 3),
-                5,
+                3,
+                360,
+                300,
                 3,
                 10,
-                3,
-                300,
                 1,
                 true,
+                null,
                 new Timestamp(System.currentTimeMillis()),
                 new Timestamp(System.currentTimeMillis())
         );
     }
 
-    // Load all active monitored services
-    public static List<ServiceConfig> loadActiveServices(Connection conn) throws Exception {
+    public static List<ServiceConfig> loadActiveServicesFromDB(Connection conn) throws Exception {
         List<ServiceConfig> services = new ArrayList<>();
         String sql = "SELECT * FROM monitored_services WHERE is_active = TRUE";
 
@@ -132,7 +137,7 @@ public final class SystemSettings {
             while (rs.next()) {
                 services.add(new ServiceConfig(
                         rs.getLong("monitored_service_id"),
-                        (UUID) rs.getObject("uuid"),
+                        rs.getObject("uuid", UUID.class),
                         rs.getString("monitored_service_name"),
                         rs.getString("monitored_service_url"),
                         rs.getString("monitored_service_region"),
@@ -155,16 +160,39 @@ public final class SystemSettings {
         return services;
     }
 
-    // Load System settings and service settings
-    public static Map<String, Object> loadAll() throws Exception {
-        try (Connection conn = JdbcUtils.getConnection()) {
-            SystemDefaults defaults = loadSystemDefaults(conn);
-            List<ServiceConfig> services = loadActiveServices(conn);
+    public static SystemDefaults loadSystemDefaults() throws Exception {
+        if (cachedDefaults == null) refreshCache();
+        return cachedDefaults;
+    }
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("systemDefaults", defaults);
-            result.put("services", services);
-            return result;
+    public static List<ServiceConfig> loadActiveServices() throws Exception {
+        if (cachedServices == null) refreshCache();
+        return cachedServices;
+    }
+
+    public static Map<String, Object> loadAll() throws Exception {
+        if (cachedDefaults == null || cachedServices == null) refreshCache();
+        Map<String, Object> result = new HashMap<>();
+        result.put("systemDefaults", cachedDefaults);
+        result.put("services", cachedServices);
+        return result;
+    }
+
+    private static synchronized void refreshCache() {
+        try (Connection conn = JdbcUtils.getConnection()) {
+            cachedDefaults = loadSystemDefaultsFromDB(conn);
+            cachedServices = loadActiveServicesFromDB(conn);
+            logger.info("SystemSettings cache refreshed successfully");
+        } catch (Exception e) {
+            logger.error("Failed to refresh SystemSettings cache", e);
         }
+    }
+
+    public static void startScheduledRefresh(long refreshIntervalMinutes) {
+        refreshCache();
+        scheduler.scheduleAtFixedRate(SystemSettings::refreshCache,
+                refreshIntervalMinutes,
+                refreshIntervalMinutes,
+                TimeUnit.MINUTES);
     }
 }

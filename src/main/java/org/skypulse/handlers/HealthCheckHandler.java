@@ -48,7 +48,8 @@ public class HealthCheckHandler implements HttpHandler {
                 dbOK = conn.isValid(2);
             } catch (SQLException ignored) {}
         }
-        response.put("database", dbOK ? "connected" : "unavailable");
+        response.put("database", "PostgreSQL");
+        response.put("database_status", dbOK ? "connected" : "unavailable");
 
         // Background tasks status
         List<Map<String, Object>> tasks = new ArrayList<>();

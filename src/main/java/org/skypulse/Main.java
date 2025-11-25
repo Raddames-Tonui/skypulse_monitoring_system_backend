@@ -16,8 +16,8 @@ import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
  * Entry point
  * Load Configuration from Xml
  * Connects to Database
- * Register Tasks
- * */
+ * Register Tasks including SSE
+ */
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
@@ -26,7 +26,7 @@ public class Main {
     public static void main(String[] args) {
         LogContext.start("Main");
         try {
-            logger.info("[------------Starting SkyPulse System------------]");
+            logger.info("[------------ Starting SkyPulse System ------------]");
 
             String configPath = (args.length > 0) ? args[0] : "config.xml";
             XmlConfiguration cfg = ConfigLoader.loadConfig(configPath);
@@ -36,15 +36,10 @@ public class Main {
             if (cfg.notification != null && cfg.notification.email != null) {
                 XmlConfiguration.Notification.Email emailCfg = cfg.notification.email;
                 logger.info("Email config loaded: host={}, port={}, TLS={}, username={}, from={}",
-                        emailCfg.smtpHost,
-                        emailCfg.smtpPort,
-                        emailCfg.useTLS,
-                        emailCfg.username,
-                        emailCfg.fromAddress);
+                        emailCfg.smtpHost, emailCfg.smtpPort, emailCfg.useTLS, emailCfg.username, emailCfg.fromAddress);
             } else {
                 logger.warn("Email configuration is missing or incomplete!");
             }
-
 
             boolean dbAvailable = false;
             try {
@@ -52,17 +47,17 @@ public class Main {
                 dbAvailable = true;
             } catch (Exception e) {
                 logger.error("Database initialization failed: {}", e.getMessage());
-                logger.warn("[------------Continuing in DEGRADED MODE — database unavailable------------]");
+                logger.warn("[------------ Continuing in DEGRADED MODE — database unavailable ------------]");
             }
 
-            logger.info("[------------Starting Undertow server------------]");
+            logger.info("[------------ Starting Undertow server ------------]");
             RestApiServer.startUndertow(cfg);
-
             registerApplicationTasks(dbAvailable, cfg);
             appScheduler.start();
 
+
             if (!dbAvailable) {
-                logger.info("[------------Starting background DB reconnection monitor------------]");
+                logger.info("[------------ Starting background DB reconnection monitor ------------]");
                 DBTaskScheduler.scheduleReconnect(() -> {
                     try {
                         DatabaseManager.initialize(cfg);

@@ -18,11 +18,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Handles authenticated requests to fetch a user's profile.
- * Loads user details, role name, and company name from the database,
- *  - Auto refresh Access Token if expired
+ * AuthMiddleware handles authenticated requests:
+ * - Validates access & refresh tokens
+ * - Auto-refreshes access token if expired
+ * - Loads user context from DB
  */
-
 public class AuthMiddleware implements HttpHandler {
 
     private static final Logger log = LoggerFactory.getLogger(AuthMiddleware.class);
@@ -44,17 +44,14 @@ public class AuthMiddleware implements HttpHandler {
         String accessToken = accessCookie != null ? accessCookie.getValue() : null;
         String refreshToken = refreshCookie != null ? refreshCookie.getValue() : null;
 
-
         if ((accessToken == null || accessToken.isBlank()) &&
                 (refreshToken == null || refreshToken.isBlank())) {
-
             ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED,
                     "No active session. Please login.");
             return;
         }
 
-        try (Connection conn =
-                     Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
+        try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
             UUID accessJti = null;
             if (accessToken != null && !accessToken.isBlank()) {
@@ -68,9 +65,8 @@ public class AuthMiddleware implements HttpHandler {
                 SELECT auth_session_id, user_id, jwt_id, refresh_token_hash,
                        session_status, is_revoked, expires_at
                 FROM auth_sessions
-                WHERE
-                      (jwt_id = ? AND ? IS NOT NULL)
-                  OR  (refresh_token_hash = ? AND ? IS NOT NULL)
+                WHERE (jwt_id IS NOT DISTINCT FROM ?)
+                   OR (refresh_token_hash IS NOT DISTINCT FROM ?)
                 LIMIT 1
             """;
 
@@ -80,35 +76,27 @@ public class AuthMiddleware implements HttpHandler {
             UUID jwtId = null;
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setObject(1, accessJti);
-                ps.setObject(2, accessJti);
-                ps.setString(3, refreshHash);
-                ps.setString(4, refreshHash);
+                ps.setObject(1, accessJti, Types.OTHER);
+                ps.setString(2, refreshHash);
 
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-
                         boolean revoked = rs.getBoolean("is_revoked");
                         String status = rs.getString("session_status");
                         Timestamp expiresAt = rs.getTimestamp("expires_at");
 
-                        if (!revoked &&
-                                "active".equals(status) &&
-                                expiresAt != null &&
-                                expiresAt.toInstant().isAfter(Instant.now())) {
+                        if (!revoked && "active".equals(status) &&
+                                expiresAt != null && expiresAt.toInstant().isAfter(Instant.now())) {
 
                             sessionValid = true;
                             userId = rs.getLong("user_id");
                             jwtId = (UUID) rs.getObject("jwt_id");
-
-                            matchedViaRefresh =
-                                    refreshHash != null &&
-                                            refreshHash.equals(rs.getString("refresh_token_hash"));
+                            matchedViaRefresh = refreshHash != null &&
+                                    refreshHash.equals(rs.getString("refresh_token_hash"));
                         }
                     }
                 }
             }
-
 
             if (!sessionValid || jwtId == null) {
                 ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED,
@@ -116,6 +104,14 @@ public class AuthMiddleware implements HttpHandler {
                 return;
             }
 
+            String userSql = """
+                    SELECT u.uuid, u.first_name, u.last_name, u.user_email,
+                           u.role_id, r.role_name, c.company_name
+                    FROM users u
+                    LEFT JOIN roles r ON u.role_id = r.role_id
+                    LEFT JOIN company c ON u.company_id = c.company_id
+                    WHERE u.user_id = ?
+            """;
 
             UUID userUuid = null;
             String firstName = null;
@@ -125,17 +121,7 @@ public class AuthMiddleware implements HttpHandler {
             String roleName = "";
             String companyName = null;
 
-            String userSql = """
-                    SELECT
-                        u.uuid, u.first_name,u.last_name, u.user_email, u.role_id, r.role_name, c.company_name
-                    FROM users u
-                    LEFT JOIN roles r ON u.role_id = r.role_id
-                    LEFT JOIN company c ON u.company_id = c.company_id
-                    WHERE u.user_id = ?
-            """;
-
-
-            try (PreparedStatement ps = conn.prepareStatement( userSql )) {
+            try (PreparedStatement ps = conn.prepareStatement(userSql)) {
                 ps.setLong(1, userId);
 
                 try (ResultSet rs = ps.executeQuery()) {
@@ -151,23 +137,22 @@ public class AuthMiddleware implements HttpHandler {
                 }
             }
 
-
-            // AUTO REFRESH ACCESS TOKEN
+            // Auto-refresh access token if expired
             boolean accessExpired = (accessToken == null) || JwtUtil.isExpired(accessToken);
 
             if (accessExpired && refreshToken != null && matchedViaRefresh) {
-                assert userUuid != null;
-                getUserByUuid(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL);
+                if (userUuid != null) {
+                    getUserByUuid(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL);
+                }
             }
 
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE auth_sessions SET last_used_at = ? WHERE jwt_id = ?"
             )) {
                 ps.setTimestamp(1, Timestamp.from(Instant.now()));
-                ps.setObject(2, jwtId);
+                ps.setObject(2, jwtId, Types.OTHER);
                 ps.executeUpdate();
             }
-
 
             UserContext ctx = new UserContext(
                     userId, userUuid, firstName, lastName,
@@ -185,7 +170,14 @@ public class AuthMiddleware implements HttpHandler {
         }
     }
 
-    public static void getUserByUuid(HttpServerExchange exchange, UUID jwtId, UUID userUuid, String email, String roleName, long accessTokenTtl) {
+    // Generate new access token
+    public static void getUserByUuid(HttpServerExchange exchange,
+                                     UUID jwtId,
+                                     UUID userUuid,
+                                     String email,
+                                     String roleName,
+                                     long accessTokenTtl) {
+
         String newAccess = JwtUtil.generateAccessTokenWithJti(
                 userUuid.toString(),
                 email,

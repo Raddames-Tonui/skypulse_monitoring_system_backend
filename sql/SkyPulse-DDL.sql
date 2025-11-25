@@ -509,57 +509,32 @@ CREATE TABLE audit_log (
 
 CREATE TABLE system_settings (
     system_setting_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    key               VARCHAR(150) UNIQUE NOT NULL,
-    value             TEXT,
+    key               VARCHAR(150) NOT NULL,       -- category of the setting
     description       TEXT,
-    uptime_check_interval INT,
-    uptime_retry_count    INT,
-    uptime_retry_delay    INT,
-    ssl_check_interval    INT,
-    ssl_alert_thresholds  TEXT,
-    ssl_retry_count       INT DEFAULT 3,
-    ssl_retry_delay        INT DEFAULT 360,     -- seconds
-    notification_check_interval   INT,
-    notification_retry_count INT,
-    notification_cooldown_minutes INT DEFAULT 10,
-    version           INT DEFAULT 1,
-    is_active         BOOLEAN DEFAULT TRUE,
-    date_created      TIMESTAMP DEFAULT NOW(),
-    date_modified     TIMESTAMP DEFAULT NOW()
-);
 
--- History table (stores every change in system settings)
-CREATE TABLE system_settings_history (
-    history_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    system_setting_id BIGINT,
-    key               VARCHAR(150),
-    value             TEXT,
-    description       TEXT,
-    uptime_check_interval INT,
+    uptime_check_interval INT,      -- seconds
     uptime_retry_count    INT,
-    uptime_retry_delay    INT,
-    ssl_check_interval    INT,
-    ssl_alert_thresholds  TEXT,
+    uptime_retry_delay    INT,      -- seconds
+    sse_push_interval     INT,      -- seconds
+
+    ssl_check_interval    INT,      -- seconds between SSL checks
+    ssl_alert_thresholds  TEXT,     -- e.g., "30,14,7" days
     ssl_retry_count       INT DEFAULT 3,
     ssl_retry_delay       INT DEFAULT 360,     -- seconds
-    notification_check_interval   INT,
-    notification_retry_count INT,
-    notification_cooldown_minutes INT,
-    version           INT,
-    action            VARCHAR(20), -- CREATE / UPDATE / DELETE
+
+    notification_check_interval   INT,          -- seconds
+    notification_retry_count      INT,
+    notification_cooldown_minutes INT DEFAULT 10,
+
+    version           INT DEFAULT 1,
+    is_active         BOOLEAN DEFAULT TRUE,    -- only one active per key
     changed_by        BIGINT,
-    ip_address        VARCHAR(64),
     date_created      TIMESTAMP DEFAULT NOW(),
-    FOREIGN KEY (system_setting_id) REFERENCES system_settings(system_setting_id)
+    date_modified      TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE api_keys (
-    uuid UUID     DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id BIGINT,
-    api_key_hash TEXT NOT NULL,
-    scopes TEXT[],
-    expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    CONSTRAINT fk_api_keys_user_id
-      FOREIGN KEY (user_id) REFERENCES users(user_id)
-);
+-- Ensure only one active version per key
+CREATE UNIQUE INDEX ux_system_settings_active
+ON system_settings(key);
+
+

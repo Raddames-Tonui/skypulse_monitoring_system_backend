@@ -2,16 +2,13 @@ package org.skypulse.handlers;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.StatusCodes;
 import org.skypulse.rest.auth.RequireRoles;
 import org.skypulse.services.TaskScheduler;
-import org.skypulse.utils.JsonUtil;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.skypulse.utils.ResponseUtil;
 
 /**
  * HTTP handler for reloading scheduled tasks via API.
- * Only accessible by authorized users with ADMIN or OPERATOR roles.
  */
 @RequireRoles({"ADMIN", "OPERATOR"})
 public class TaskController implements HttpHandler {
@@ -29,18 +26,11 @@ public class TaskController implements HttpHandler {
             return;
         }
 
-        Map<String, Object> response = new HashMap<>();
-
         try {
             taskScheduler.reload();
-            response.put("status", "success");
-            response.put("message", "Tasks reloaded successfully");
+            ResponseUtil.sendSuccess(exchange, "Tasks reloaded successfully", null);
         } catch (Exception e) {
-            response.put("status", "error");
-            response.put("message", "Failed to reload tasks: " + e.getMessage());
+            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, "Tasks reload failed");
         }
-
-        String json = JsonUtil.mapper().writeValueAsString(response);
-        exchange.getResponseSender().send(json);
     }
 }

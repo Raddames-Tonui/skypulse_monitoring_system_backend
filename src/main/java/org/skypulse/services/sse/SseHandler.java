@@ -8,31 +8,39 @@ import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public abstract class AbstractSseHandler implements ServerSentEventConnectionCallback {
+public class SseHandler implements ServerSentEventConnectionCallback {
 
-    protected final Logger logger = LoggerFactory.getLogger(getClass());
+    protected final Logger logger = LoggerFactory.getLogger(SseHandler.class);
     protected final Set<ServerSentEventConnection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
     protected final ServerSentEventHandler handler;
     protected final ScheduledExecutorService scheduler;
 
-    public AbstractSseHandler(long initialDelaySec, long intervalSec) {
+    public SseHandler(long initialDelaySec, long intervalSec) {
         this.handler = new ServerSentEventHandler(this);
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        if (intervalSec <= 0) {
+            intervalSec = 30;
+        }
+
         this.scheduler.scheduleAtFixedRate(this::pushToAll, initialDelaySec, intervalSec, TimeUnit.SECONDS);
     }
 
-    public ServerSentEventHandler getHandler() {
+
+    public ServerSentEventHandler getHandler(){
         return handler;
     }
 
-    public void shutdown() {
-        if (!scheduler.isShutdown()) {
+    public void shutdown(){
+        if (!scheduler.isShutdown()){
             scheduler.shutdown();
             logger.info("{} scheduler shut down.", getClass().getSimpleName());
         }
@@ -41,23 +49,22 @@ public abstract class AbstractSseHandler implements ServerSentEventConnectionCal
     @Override
     public void connected(ServerSentEventConnection connection, String lastEventId) {
         connections.add(connection);
-        connection.addCloseTask(() -> connections.remove(connection));
+        connection.addCloseTask((connections::remove));
         push(connection);
         logger.info("New SSE connection established (Last Event ID: {}). Total connections: {}",
                 lastEventId, connections.size());
     }
 
+
     private void pushToAll() {
         Map<String, Object> data = generateData();
         String json = serializeToJson(data);
-        if (json != null) {
-            connections.forEach(conn -> {
-                if (conn.isOpen()) conn.send(json);
-            });
+        for (ServerSentEventConnection conn : connections) {
+            if (conn.isOpen()) conn.send(json);
         }
     }
 
-    private void push(ServerSentEventConnection connection) {
+    public void push(ServerSentEventConnection connection) {
         Map<String, Object> data = generateData();
         String json = serializeToJson(data);
         if (json != null && connection.isOpen()) {
@@ -74,8 +81,9 @@ public abstract class AbstractSseHandler implements ServerSentEventConnectionCal
         }
     }
 
-    /**
-     * Subclasses implement this to provide the data for SSE push.
-     */
-    protected abstract Map<String, Object> generateData();
+
+    // Subclasses Override to provide data for SSE push
+    protected Map<String, Object> generateData() {
+        return null;
+    }
 }
