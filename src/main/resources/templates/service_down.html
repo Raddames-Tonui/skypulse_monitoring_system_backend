@@ -5,51 +5,103 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Service Alert - {{service_name}}</title>
+
     <style type="text/css">
-        body { margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; background-color: #F3F4F6; }
-        table { border-collapse: collapse; }
-        .content { max-width: 600px; margin: 20px auto; background: #fff; padding: 20px; border-radius: 8px; }
-        .header { font-size: 18px; font-weight: bold; color: #B91C1C; }
-        .message { font-size: 14px; color: #111827; line-height: 1.5; }
-        .footer { font-size: 12px; color: #6B7280; text-align: center; padding: 20px; }
         @media only screen and (max-width: 480px) {
-            .content { width: 95% !important; padding: 15px !important; }
+            .mobile-stack {
+                display: block !important;
+                width: 100% !important;
+            }
+            .button {
+                display: block !important;
+                width: 100% !important;
+            }
         }
     </style>
 </head>
-<body>
-<table width="100%" bgcolor="#F3F4F6" cellpadding="0" cellspacing="0">
+
+<body style="background-color:#F3F4F6; font-family: Arial, sans-serif; margin:0; padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0">
     <tr>
         <td align="center">
-            <table class="content" cellpadding="0" cellspacing="0" width="600">
+
+            <!-- Outer Container -->
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:2rem 0;">
+
+                <!-- Logo -->
                 <tr>
-                    <td class="header">🚨 Service Down Alert</td>
+                    <td align="center" style="padding:20px 0;">
+                        <img src="cid:skypulseLogo" alt="SkyPulse Logo" width="160" style="display:block;">
+                    </td>
                 </tr>
+
+                <!-- Header -->
                 <tr>
-                    <td class="message">
-                        <p>Service <strong>{{service_name}}</strong> is currently <strong style="color: #B91C1C;">DOWN</strong>.</p>
+                    <td align="center" style="font-size:24px; color:#B91C1C; font-weight:bold; padding:10px;">
+                        Service Down Alert
+                    </td>
+                </tr>
+
+                <tr>
+                    <td align="center" style="font-size:18px; color:#111827; font-weight:bold; padding:0 10px 20px;">
+                        {{service_name}}
+                    </td>
+                </tr>
+
+                <!-- Alert Details -->
+                <tr>
+                    <td style="padding:0 20px; font-size:14px; color:#111827;">
+                        <p style="font-size:16px; font-weight:bold; color:#B91C1C;">Immediate Attention Required</p>
+
+                        <p>
+                            The monitored service <strong>{{service_name}}</strong> is currently
+                            <strong style="color:#B91C1C;">DOWN</strong>.
+                        </p>
+
                         <p><strong>Time:</strong> {{checked_at}}</p>
                         <p><strong>HTTP Code:</strong> {{http_code}}</p>
                         <p><strong>Response Time:</strong> {{response_time_ms}} ms</p>
+
                         {{#error_message}}
                         <p><strong>Error:</strong> {{error_message}}</p>
                         {{/error_message}}
-                        <hr/>
+
+                        <hr style="border:0; border-top:1px solid #E5E7EB; margin:20px 0;"/>
+
                         <p>Please investigate immediately.</p>
                     </td>
                 </tr>
-            </table>
 
-            <table class="footer" cellpadding="0" cellspacing="0" width="600">
+                <!-- Button -->
                 <tr>
-                    <td>
-                        Tatua Solutions Inc.<br>
-                        123 Innovation Drive, Suite 400<br>
-                        San Francisco, CA 94105<br>
-                        <a href="#" style="color: #2563EB; text-decoration: none;">Privacy Policy</a> |
-                        <a href="#" style="color: #2563EB; text-decoration: none;">Terms of Service</a>
+                    <td align="center" style="padding:20px;">
+                        <a href="{{dashboard_url}}"
+                           style="background-color:#B91C1C; color:#ffffff; padding:12px 24px;
+                                  text-decoration:none; font-weight:bold; border-radius:4px; display:inline-block;"
+                           class="button">
+                            Open Dashboard
+                        </a>
                     </td>
                 </tr>
+
+                <!-- Footer -->
+                <tr>
+                    <td style="padding:20px; font-size:12px; color:#666666;
+                               text-align:center; background-color:#f3f4f6;">
+                        <p style="margin-bottom:8px;">
+                            SkyPulse Monitoring System
+                        </p>
+                        <p>
+                            123 Innovation Drive, Suite 400<br/>
+                            Nairobi, Kenya<br/><br/>
+
+                            <a href="{{privacy_url}}" style="color:#2563EB; text-decoration:none;">Privacy Policy</a> |
+                            <a href="{{terms_url}}" style="color:#2563EB; text-decoration:none;">Terms of Service</a> |
+                            <a href="{{unsubscribe_url}}" style="color:#2563EB; text-decoration:none;">Unsubscribe</a>
+                        </p>
+                    </td>
+                </tr>
+
             </table>
 
         </td>

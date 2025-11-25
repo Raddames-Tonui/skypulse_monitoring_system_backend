@@ -1,34 +1,106 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service Recovered - {{service_name}}</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f3f4f6; margin:0; padding:0;}
-        .container { max-width:600px; margin:20px auto; background:#fff; padding:20px; border-radius:8px;}
-        .header { font-size:18px; color:#16A34A; font-weight:bold;}
-        .message { font-size:14px; color:#111827; line-height:1.5;}
-        .footer { font-size:12px; color:#6B7280; text-align:center; padding:20px;}
+
+    <style type="text/css">
+        @media only screen and (max-width: 480px) {
+            .mobile-stack {
+                display: block !important;
+                width: 100% !important;
+            }
+            .button {
+                display:block !important;
+                width:100% !important;
+            }
+        }
     </style>
 </head>
-<body>
-<div class="container">
-    <div class="header">✅ Service Recovered</div>
-    <div class="message">
-        <p>Service <strong>{{service_name}}</strong> has <strong style="color:#16A34A;">RECOVERED</strong>.</p>
-        <p><strong>Checked at:</strong> {{checked_at}}</p>
-        <p><strong>Downtime:</strong> {{downtime_seconds}} seconds</p>
-        <p><strong>HTTP Code:</strong> {{http_code}}</p>
-        <p><strong>Response Time:</strong> {{response_time_ms}} ms</p>
-        {{#error_message}}
-        <p><strong>Error:</strong> {{error_message}}</p>
-        {{/error_message}}
-    </div>
-</div>
-<div class="footer">
-    Tatua Solutions Inc.<br>
-    123 Innovation Drive, Suite 400<br>
-    San Francisco, CA 94105
-</div>
+
+<body style="background-color:#F3F4F6; font-family: Arial, sans-serif; margin:0; padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+        <td align="center">
+
+            <!-- Outer Container -->
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:2rem 0;">
+
+                <!-- Logo -->
+                <tr>
+                    <td align="center" style="padding:20px 0;">
+                        <img src="cid:skypulseLogo" alt="SkyPulse Logo" width="160" style="display:block;">
+                    </td>
+                </tr>
+
+                <!-- Header -->
+                <tr>
+                    <td align="center" style="font-size:24px; color:#16A34A; font-weight:bold; padding:10px;">
+                        Service Recovered
+                    </td>
+                </tr>
+                <tr>
+                    <td align="center" style="font-size:18px; color:#111827; font-weight:bold; padding:0 10px 20px;">
+                        {{service_name}}
+                    </td>
+                </tr>
+
+                <!-- Service Recovery Details -->
+                <tr>
+                    <td style="padding:0 20px; font-size:14px; color:#111827;">
+                        <p style="font-size:16px; font-weight:bold; color:#16A34A;">The service is back online</p>
+
+                        <p>
+                            The monitored service <strong>{{service_name}}</strong> has
+                            <strong style="color:#16A34A;">RECOVERED</strong>.
+                        </p>
+
+                        <p><strong>Checked At:</strong> {{checked_at}}</p>
+                        <p><strong>Downtime:</strong> {{downtime_seconds}} seconds</p>
+                        <p><strong>HTTP Code:</strong> {{http_code}}</p>
+                        <p><strong>Response Time:</strong> {{response_time_ms}} ms</p>
+
+                        {{#error_message}}
+                        <p><strong>Error:</strong> {{error_message}}</p>
+                        {{/error_message}}
+                    </td>
+                </tr>
+
+                <!-- Button -->
+                <tr>
+                    <td align="center" style="padding:20px;">
+                        <a href="{{dashboard_url}}"
+                           style="background-color:#16A34A; color:#ffffff; padding:12px 24px;
+                                  text-decoration:none; font-weight:bold; border-radius:4px; display:inline-block;"
+                           class="button">
+                            View Dashboard
+                        </a>
+                    </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                    <td style="padding:20px; font-size:12px; color:#666666;
+                               text-align:center; background-color:#f3f4f6;">
+                        <p style="margin-bottom:8px;">
+                            SkyPulse Monitoring System
+                        </p>
+                        <p>
+                            123 Innovation Drive, Suite 400<br/>
+                            Nairobi, Kenya<br/><br/>
+
+                            <a href="{{manage_notifications_url}}" style="color:#2563EB; text-decoration:none;">Manage Notifications</a> |
+                            <a href="{{unsubscribe_url}}" style="color:#2563EB; text-decoration:none;">Unsubscribe</a> |
+                            <a href="{{privacy_url}}" style="color:#2563EB; text-decoration:none;">Privacy</a>
+                        </p>
+                    </td>
+                </tr>
+
+            </table>
+        </td>
+    </tr>
+</table>
 </body>
 </html>

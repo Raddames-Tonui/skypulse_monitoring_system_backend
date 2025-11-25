@@ -1,0 +1,101 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{{email_title}}</title>
+
+    <style type="text/css">
+        @media only screen and (max-width: 480px) {
+            .mobile-stack {
+                display:block !important;
+                width:100% !important;
+            }
+            .button {
+                display:block !important;
+                width:100% !important;
+            }
+        }
+    </style>
+</head>
+
+<body style="background-color:#F3F4F6; font-family: Arial, sans-serif; margin:0; padding:0;">
+<table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+        <td align="center">
+
+            <!-- OUTER WRAPPER -->
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:2rem 0;">
+
+                <!-- LOGO -->
+                {{#logo_cid}}
+                <tr>
+                    <td align="center" style="padding:20px 0;">
+                        <img src="cid:{{logo_cid}}" alt="{{brand_name}} Logo" width="{{logo_width}}" style="display:block;">
+                    </td>
+                </tr>
+                {{/logo_cid}}
+
+                <!-- HEADER TITLE -->
+                <tr>
+                    <td align="center" style="font-size:24px; font-weight:bold; padding:10px; color:{{header_color}};">
+                        {{header_title}}
+                    </td>
+                </tr>
+
+                <!-- OPTIONAL SUBTITLE -->
+                {{#header_subtitle}}
+                <tr>
+                    <td align="center" style="font-size:18px; color:#111827; font-weight:bold; padding:0 10px 20px;">
+                        {{header_subtitle}}
+                    </td>
+                </tr>
+                {{/header_subtitle}}
+
+                <!-- MAIN BODY CONTENT -->
+                <tr>
+                    <td style="padding:0 20px; font-size:14px; color:#111827; line-height:1.5;">
+                        {{{body_html}}}
+                    </td>
+                </tr>
+
+                <!-- OPTIONAL BUTTON -->
+                {{#button_text}}
+                <tr>
+                    <td align="center" style="padding:20px;">
+                        <a href="{{button_url}}"
+                           style="background-color:{{button_color}}; color:#ffffff; padding:12px 24px;
+                                  text-decoration:none; font-weight:bold; border-radius:4px; display:inline-block;"
+                           class="button">
+                            {{button_text}}
+                        </a>
+                    </td>
+                </tr>
+                {{/button_text}}
+
+                <!-- FOOTER -->
+                <tr>
+                    <td style="padding:20px; font-size:12px; color:#666666;
+                               text-align:center; background-color:#f3f4f6;">
+                        <p style="margin-bottom:8px;">
+                            {{brand_name}}
+                        </p>
+                        <p>
+                            {{address_line_1}}<br/>
+                            {{address_line_2}}<br/><br/>
+
+                            {{#footer_links}}
+                            <a href="{{url}}" style="color:#2563EB; text-decoration:none;">{{label}}</a>{{#separator}} | {{/separator}}
+                            {{/footer_links}}
+                        </p>
+                    </td>
+                </tr>
+
+            </table>
+
+        </td>
+    </tr>
+</table>
+</body>
+</html>

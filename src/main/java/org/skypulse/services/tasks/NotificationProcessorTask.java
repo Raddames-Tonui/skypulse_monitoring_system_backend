@@ -93,9 +93,9 @@ public class NotificationProcessorTask implements ScheduledTask {
                         }
                         markProcessed(conn, eventId);
                     } catch (Exception e) {
-                        logger.error("[NotificationProcessorTask] Failed processing event {}: {}", eventId, e.getMessage(), e);
+                        logger.error("[ NotificationProcessorTask ] Failed processing event {}: {}", eventId, e.getMessage(), e);
                         try { markFailed(conn, eventId, e.getMessage()); } catch (SQLException ex) {
-                            logger.error("[NotificationProcessorTask] Failed to mark event {} failed: {}", eventId, ex.getMessage(), ex);
+                            logger.error("[ NotificationProcessorTask ] Failed to mark event {} failed: {}", eventId, ex.getMessage(), ex);
                         }
                     }
                 }
@@ -103,69 +103,87 @@ public class NotificationProcessorTask implements ScheduledTask {
                 conn.commit();
             } catch (Exception e) {
                 conn.rollback();
-                logger.error("[NotificationProcessorTask] Failed batch processing: {}", e.getMessage(), e);
+                logger.error("[ NotificationProcessorTask ] Failed batch processing: {}", e.getMessage(), e);
             } finally {
                 conn.setAutoCommit(true);
             }
 
         } catch (Exception e) {
-            logger.error("[NotificationProcessorTask] Database connection error: {}", e.getMessage(), e);
+            logger.error("[ NotificationProcessorTask ] Database connection error: {}", e.getMessage(), e);
         }
     }
 
-    private void processEvent(Connection conn, long eventId, long serviceId, String eventType,
-                              Map<String, Object> payload, Timestamp firstFailureAt,
-                              int cooldownMinutes, int retryCount, int retryDelaySeconds) throws Exception {
+    private void processEvent(Connection conn,
+                              long eventId,
+                              long serviceId,
+                              String eventType,
+                              Map<String, Object> payload,
+                              Timestamp firstFailureAt,
+                              int cooldownMinutes,
+                              int retryCount,
+                              int retryDelaySeconds) throws Exception {
 
-        logger.debug("[NotificationProcessorTask] processEvent start: eventId={}, serviceId={}, eventType={}", eventId, serviceId, eventType);
+        logger.debug("[ NotificationProcessorTask ] Processing event: id={}, serviceId={}, type={}",
+                eventId, serviceId, eventType);
 
-        boolean sendEvent = true;
-        Duration downtime = Duration.ZERO;
+        boolean allowedToSend = true;
 
-        // Cooldown handling for repeated DOWN alerts
+        // 1. COOLDOWN HANDLING
         if ("SERVICE_DOWN".equals(eventType)) {
-            if (firstFailureAt != null &&
-                    firstFailureAt.toInstant().plus(Duration.ofMinutes(cooldownMinutes)).isAfter(Instant.now())) {
-                logger.info("[NotificationProcessorTask] Skipping SERVICE_DOWN for service {} within cooldown (first_failure_at={})", serviceId, firstFailureAt);
-                sendEvent = false;
-            } else if (firstFailureAt == null) {
+            if (firstFailureAt != null) {
+                Instant expiry = firstFailureAt.toInstant().plus(Duration.ofMinutes(cooldownMinutes));
+                if (expiry.isAfter(Instant.now())) {
+                    logger.info("[ NotificationProcessorTask ] Skipping SERVICE_DOWN for service {} (cooldown active)", serviceId);
+                    allowedToSend = false;
+                }
+            } else {
+                // First failure: mark timestamp
                 try (PreparedStatement ps = conn.prepareStatement(
                         "UPDATE event_outbox SET first_failure_at = NOW() WHERE event_outbox_id = ?")) {
                     ps.setLong(1, eventId);
                     ps.executeUpdate();
-                    logger.debug("[NotificationProcessorTask] Set first_failure_at for event {}", eventId);
+                    logger.debug("[ NotificationProcessorTask ] Marked first_failure_at for event {}", eventId);
                 }
             }
         }
 
-        // Downtime calculation for recovery
+        // 2. DOWNTIME CALCULATION (RECOVERY)
         if ("SERVICE_RECOVERED".equals(eventType) && firstFailureAt != null) {
-            downtime = Duration.between(firstFailureAt.toInstant(), Instant.now());
+            Duration downtime = Duration.between(firstFailureAt.toInstant(), Instant.now());
             payload.put("downtime_seconds", downtime.getSeconds());
-            logger.debug("[NotificationProcessorTask] Calculated downtime_seconds={} for event {}", downtime.getSeconds(), eventId);
+            logger.debug("[ NotificationProcessorTask ] Downtime computed: {} seconds for event {}",
+                    downtime.getSeconds(), eventId);
         }
 
-        if (!sendEvent) return;
+        if (!allowedToSend) return;
 
-        // Load templates (external -> classpath -> db)
+        // 3. LOAD TEMPLATES
         String subjectTpl;
         String bodyTpl;
-        try (PreparedStatement psTpl = conn.prepareStatement(
-                "SELECT subject_template, body_template, body_template_key, storage_mode " +
-                        "FROM notification_templates WHERE event_type = ?")) {
-            psTpl.setString(1, eventType);
-            try (ResultSet rsTpl = psTpl.executeQuery()) {
-                if (rsTpl.next()) {
-                    subjectTpl = rsTpl.getString("subject_template");
-                    String bodyDb = rsTpl.getString("body_template");
-                    String bodyKey = rsTpl.getString("body_template_key");
-                    String storageMode = rsTpl.getString("storage_mode");
-                    bodyTpl = loadTemplate(bodyDb, bodyKey, storageMode);
-                    if (bodyTpl == null || bodyTpl.isBlank()) {
-                        throw new Exception("Resolved template is empty for event_type=" + eventType);
-                    }
-                } else {
+
+        try (PreparedStatement ps = conn.prepareStatement(
+                """
+                    SELECT subject_template, body_template, body_template_key, storage_mode
+                    FROM notification_templates
+                    WHERE event_type = ?
+                """)) {
+
+            ps.setString(1, eventType);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
                     throw new Exception("Template not found for event_type=" + eventType);
+                }
+
+                subjectTpl = rs.getString("subject_template");
+                String bodyDb = rs.getString("body_template");
+                String bodyKey = rs.getString("body_template_key");
+                String storageMode = rs.getString("storage_mode");
+
+                bodyTpl = loadTemplate(bodyDb, bodyKey, storageMode);
+
+                if (bodyTpl == null || bodyTpl.isBlank()) {
+                    throw new Exception("Resolved template is empty for event_type=" + eventType);
                 }
             }
         }
@@ -173,77 +191,125 @@ public class NotificationProcessorTask implements ScheduledTask {
         String subject = renderTemplate(subjectTpl, payload);
         String body = renderTemplate(bodyTpl, payload);
 
-        // Fetch contact_group_id and user contacts for the service
-        String contactsSql = """
-                SELECT cgm.contact_group_id, uc.user_contacts_id, uc.user_id, uc.type, uc.value, uc.is_primary
+        // 4. FETCH CONTACTS FOR THIS SERVICE
+        final String contactsSql =
+                """
+                SELECT
+                    cgm.contact_group_member_id,
+                    cgm.user_id,
+                    cg.contact_group_id,
+    
+                    uc.user_contacts_id,
+                    uc.type AS contact_type,
+                    uc.value AS contact_value,
+                    uc.is_primary,
+    
+                    nc.notification_channel_id
                 FROM monitored_services_contact_groups mscg
-                JOIN contact_group_members cgm ON mscg.contact_group_id = cgm.contact_group_id
-                JOIN user_contacts uc ON cgm.user_id = uc.user_id
+                JOIN contact_groups cg
+                    ON cg.contact_group_id = mscg.contact_group_id
+                JOIN contact_group_members cgm
+                    ON cgm.contact_group_id = cg.contact_group_id
+                JOIN user_contacts uc
+                    ON uc.user_id = cgm.user_id
+                JOIN notification_channels nc
+                    ON nc.notification_channel_code = UPPER(uc.type)
                 WHERE mscg.monitored_service_id = ?
+                ORDER BY cgm.contact_group_member_id, uc.is_primary DESC
                 """;
 
         try (PreparedStatement cgPs = conn.prepareStatement(contactsSql)) {
             cgPs.setLong(1, serviceId);
-            try (ResultSet cgRs = cgPs.executeQuery()) {
-                while (cgRs.next()) {
-                    long contactGroupId = cgRs.getLong("contact_group_id");
-                    long contactId = cgRs.getLong("user_contacts_id");
-                    long userId = cgRs.getLong("user_id");
-                    String type = cgRs.getString("type");
-                    String destination = cgRs.getString("value");
 
-                    // Inline images map — you can make this dynamic per template if you want
-                    Map<String, String> inlineImages = Map.of("tatuaLogo", "src/main/resources/images/tatua-logo.png");
+            try (ResultSet rs = cgPs.executeQuery()) {
+
+                while (rs.next()) {
+
+                    long contactGroupId        = rs.getLong("contact_group_id");
+                    long memberId              = rs.getLong("contact_group_member_id");
+                    long contactId             = rs.getLong("user_contacts_id");
+                    long channelId             = rs.getLong("notification_channel_id");
+
+                    String contactType         = rs.getString("contact_type");     // email/sms/telegram/etc
+                    String destination         = rs.getString("contact_value");
+
+                    // Optional inline images (can be made template-specific)
+                    Map<String, String> inlineImages =
+                            Map.of("tatuaLogo", "src/main/resources/images/tatua-logo.png");
 
                     boolean sent = false;
-                    int attempt = 0;
-                    Exception lastSendException = null;
+                    Exception lastException = null;
 
-                    // Try sending using user contact type (EMAIL, TELEGRAM, SMS, etc.)
-                    while (!sent && attempt < retryCount) {
+                    // 5. SEND WITH RETRIES
+                    for (int attempt = 1; attempt <= retryCount && !sent; attempt++) {
+
                         try {
-                            sent = sender.send(type.toUpperCase(), destination, subject, body, inlineImages);
+                            sent = sender.send(contactType.toUpperCase(), destination, subject, body, inlineImages);
                         } catch (Exception e) {
-                            lastSendException = e;
+                            lastException = e;
                             sent = false;
                         }
-                        attempt++;
+
                         if (!sent) {
-                            logger.warn("[NotificationProcessorTask] Send attempt {} failed for contact {} (type={}) destination={}", attempt, contactId, type, destination);
-                            try { Thread.sleep(retryDelaySeconds * 1000L); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+                            logger.warn("[ NotificationProcessorTask ] Attempt {} failed for contact {} [{}={}]. Retrying...",
+                                    attempt, contactId, contactType, destination);
+
+                            Thread.sleep(retryDelaySeconds * 1000L);
                         }
                     }
 
-                    // Insert history record (notification_channel_id left NULL; contact_group_id set)
+                    // 6. LOG HISTORY
                     try (PreparedStatement logPs = conn.prepareStatement(
-                            "INSERT INTO notification_history(service_id, contact_group_id, contact_group_member_id, " +
-                                    "notification_channel_id, recipient, subject, message, status, sent_at, error_message) " +
-                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)"
+                            """
+                            INSERT INTO notification_history (
+                                service_id,
+                                contact_group_id,
+                                contact_group_member_id,
+                                notification_channel_id,
+                                recipient,
+                                subject,
+                                message,
+                                status,
+                                sent_at,
+                                error_message
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                            """
                     )) {
+
                         logPs.setLong(1, serviceId);
-                        logPs.setObject(2, contactGroupId);
-                        logPs.setLong(3, userId);
-                        logPs.setObject(4, null); // you can map type->notification_channel_id if you maintain that table
+                        logPs.setLong(2, contactGroupId);
+                        logPs.setLong(3, memberId);
+                        logPs.setLong(4, channelId);
+
                         logPs.setString(5, destination);
                         logPs.setString(6, subject);
                         logPs.setString(7, body);
                         logPs.setString(8, sent ? "sent" : "failed");
-                        String err = sent ? null : (lastSendException != null ? lastSendException.getMessage() : "Retries exhausted");
+
+                        String err = sent ? null :
+                                (lastException != null ? lastException.getMessage() : "Retries exhausted");
+
                         logPs.setString(9, err);
                         logPs.executeUpdate();
-                    } catch (SQLException e) {
-                        logger.error("[NotificationProcessorTask] Failed to log notification history for contact {}: {}", contactId, e.getMessage(), e);
+
+                    } catch (SQLException logEx) {
+                        logger.error("[ NotificationProcessorTask ] Failed to write notification history for contact {}: {}",
+                                contactId, logEx.getMessage(), logEx);
                     }
 
+                    // 7. LOG SEND RESULT
                     if (sent) {
-                        logger.info("[NotificationProcessorTask] Notification sent: eventId={}, serviceId={}, contactId={}, type={}, dest={}", eventId, serviceId, contactId, type, destination);
+                        logger.info("[ NotificationProcessorTask ] Notification sent: eventId={}, serviceId={}, contactId={}, type={}, dest={}",
+                                eventId, serviceId, contactId, contactType, destination);
                     } else {
-                        logger.warn("[NotificationProcessorTask] Notification NOT sent after {} attempts: eventId={}, serviceId={}, contactId={}, type={}, dest={}", attempt, eventId, serviceId, contactId, type, destination);
+                        logger.warn("[ NotificationProcessorTask ] Notification NOT sent after {} attempts: eventId={}, serviceId={}, contactId={}, type={}, dest={}",
+                                retryCount, eventId, serviceId, contactId, contactType, destination);
                     }
                 }
             }
         }
     }
+
 
     private String renderTemplate(String template, Map<String, Object> data) throws Exception {
         Mustache mustache = mustacheFactory.compile(new StringReader(template), "template");
@@ -286,11 +352,11 @@ public class NotificationProcessorTask implements ScheduledTask {
             try {
                 template = Files.readString(Paths.get(externalPath, bodyTemplateKey));
                 if (template != null && !template.isBlank()) {
-                    logger.info("[NotificationProcessorTask] Loaded template from external folder: {}", bodyTemplateKey);
+                    logger.info("[ NotificationProcessorTask ] Loaded template from external folder: {}", bodyTemplateKey);
                     return template;
                 }
             } catch (Exception e) {
-                logger.warn("[NotificationProcessorTask] External template not found or failed to read, will try classpath. Key: {} - {}", bodyTemplateKey, e.getMessage());
+                logger.warn("[ NotificationProcessorTask ] External template not found or failed to read, will try classpath. Key: {} - {}", bodyTemplateKey, e.getMessage());
             }
         }
 
@@ -299,20 +365,20 @@ public class NotificationProcessorTask implements ScheduledTask {
             try (InputStream is = getClass().getClassLoader().getResourceAsStream("templates/" + bodyTemplateKey)) {
                 if (is != null) {
                     template = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-                    logger.info("[NotificationProcessorTask] Loaded template from classpath: {}", bodyTemplateKey);
+                    logger.info("[ NotificationProcessorTask ] Loaded template from classpath: {}", bodyTemplateKey);
                     return template;
                 }
             } catch (Exception e) {
-                logger.warn("[NotificationProcessorTask] Classpath template failed to load, will try DB. Key: {} - {}", bodyTemplateKey, e.getMessage());
+                logger.warn("[ NotificationProcessorTask ] Classpath template failed to load, will try DB. Key: {} - {}", bodyTemplateKey, e.getMessage());
             }
         }
 
         // 3) DB fallback
         if (bodyTemplateDb != null && !bodyTemplateDb.isBlank()) {
             template = bodyTemplateDb;
-            logger.info("[NotificationProcessorTask] Using DB template as fallback.");
+            logger.info("[ NotificationProcessorTask ] Using DB template as fallback.");
         } else {
-            logger.error("[NotificationProcessorTask] No template found in external folder, classpath, or DB for key: {}", bodyTemplateKey);
+            logger.error("[ NotificationProcessorTask ] No template found in external folder, classpath, or DB for key: {}", bodyTemplateKey);
         }
 
         return template;
