@@ -1,16 +1,22 @@
 package org.skypulse;
 
 import org.skypulse.config.ConfigLoader;
-import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.config.database.DBTaskScheduler;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.utils.LogContext;
+import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.rest.RestApiServer;
 import org.skypulse.services.TaskScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
+/**
+ * Entry point
+ * Load Configuration from Xml
+ * Connects to Database
+ * Register Tasks
+ * */
 
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);

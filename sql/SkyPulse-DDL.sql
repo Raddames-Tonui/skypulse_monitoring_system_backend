@@ -344,6 +344,7 @@ CREATE TABLE ssl_logs (
   expiry_date         DATE,
   days_remaining      INTEGER,
   last_checked        TIMESTAMP DEFAULT NOW(),
+  retry_count         INT DEFAULT 0,
   date_created        TIMESTAMP DEFAULT NOW(),
   date_modified       TIMESTAMP DEFAULT NOW(),
 
@@ -516,6 +517,8 @@ CREATE TABLE system_settings (
     uptime_retry_delay    INT,
     ssl_check_interval    INT,
     ssl_alert_thresholds  TEXT,
+    ssl_retry_count       INT DEFAULT 3,
+    ssl_retry_delay        INT DEFAULT 360,     -- seconds
     notification_check_interval   INT,
     notification_retry_count INT,
     notification_cooldown_minutes INT DEFAULT 10,
@@ -537,6 +540,8 @@ CREATE TABLE system_settings_history (
     uptime_retry_delay    INT,
     ssl_check_interval    INT,
     ssl_alert_thresholds  TEXT,
+    ssl_retry_count       INT DEFAULT 3,
+    ssl_retry_delay       INT DEFAULT 360,     -- seconds
     notification_check_interval   INT,
     notification_retry_count INT,
     notification_cooldown_minutes INT,

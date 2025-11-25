@@ -9,12 +9,10 @@ import org.skypulse.utils.SslUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
+import java.sql.*;
 import java.sql.Date;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -30,22 +28,33 @@ public class SslExpiryMonitorTask implements ScheduledTask {
 
     private final long sslCheckIntervalSeconds;
     private final List<Integer> alertThresholds;
+    private final int sslRetryCount;
+    private final int sslRetryDelaySeconds;
 
+    private final SystemSettings.SystemDefaults defaults;
 
-    public SslExpiryMonitorTask() {
-        try (Connection conn = JdbcUtils.getConnection()) {
+    public SslExpiryMonitorTask(SystemSettings.SystemDefaults defaults) {
+        this.defaults = defaults;
 
-            SystemSettings.SystemDefaults defaults = SystemSettings.loadSystemDefaults(conn);
+        int interval = defaults.sslCheckInterval();
+        if (interval <= 0) interval = 60 * 60 * 6; // fallback 6 hours
+        this.sslCheckIntervalSeconds = interval;
 
-            this.sslCheckIntervalSeconds = defaults.sslCheckInterval() * 60L;
-            this.alertThresholds = defaults.sslAlertThresholds();
+        List<Integer> th = defaults.sslAlertThresholds();
+        this.alertThresholds = (th != null && !th.isEmpty())
+                ? th
+                : List.of(30, 14, 7, 3);
 
-        } catch (Exception e) {
-            logger.error("Failed loading system defaults for SSL monitor: {}", e.getMessage(), e);
-            throw new RuntimeException("Unable to initialize SslExpiryMonitorTask", e);
-        }
+        this.sslRetryCount = defaults.uptimeRetryCount();
+        this.sslRetryDelaySeconds = defaults.uptimeRetryDelay();
+
+        logger.info("[------- SSL Monitor initialized: interval={} minutes thresholds={} retries={} delay={}s ----------]",
+                sslCheckIntervalSeconds / 60.0,
+                alertThresholds,
+                sslRetryCount,
+                sslRetryDelaySeconds
+        );
     }
-
 
     @Override
     public String name() {
@@ -56,7 +65,6 @@ public class SslExpiryMonitorTask implements ScheduledTask {
     public long intervalSeconds() {
         return sslCheckIntervalSeconds;
     }
-
 
     @Override
     public void execute() {
@@ -86,27 +94,63 @@ public class SslExpiryMonitorTask implements ScheduledTask {
             return;
         }
 
-        // parallel execution
-        ExecutorService executor = Executors.newFixedThreadPool(THREADS);
-        List<Future<?>> futures = new ArrayList<>();
+        // Load services that failed previously and are eligible for retry
+        Timestamp retryInterval = Timestamp.from(Instant.now().minusSeconds(sslRetryDelaySeconds));
+        try (Connection c = JdbcUtils.getConnection()) {
+            String sql = """
+                SELECT monitored_service_id, domain
+                FROM ssl_logs
+                WHERE days_remaining = -1
+                  AND retry_count < ?
+                  AND last_checked <= ?
+            """;
 
-        for (Map<String, Object> svc : services) {
-            futures.add(executor.submit(() -> checkService(
-                    (Long) svc.get("id"),
-                    (String) svc.get("name"),
-                    (String) svc.get("url")
-            )));
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                ps.setInt(1, sslRetryCount);
+                ps.setTimestamp(2, retryInterval);
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Map<String, Object> svc = new HashMap<>();
+                        svc.put("id", rs.getLong("monitored_service_id"));
+                        svc.put("name", "(retry)");
+                        svc.put("url", rs.getString("domain"));
+                        services.add(svc);
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            logger.error("Failed to load retry services: {}", e.getMessage(), e);
         }
 
-        for (Future<?> f : futures) {
-            try { f.get(); } catch (Exception ignored) {}
+        try (ExecutorService executor = Executors.newFixedThreadPool(THREADS)) {
+            try {
+                List<Future<?>> futures = new ArrayList<>();
+
+                for (Map<String, Object> svc : services) {
+                    futures.add(executor.submit(() -> checkService(
+                            (Long) svc.get("id"),
+                            (String) svc.get("name"),
+                            (String) svc.get("url")
+                    )));
+                }
+
+                for (Future<?> f : futures) {
+                    try {
+                        f.get();
+                    } catch (Exception e) {
+                        logger.error("SSL check task failed: {}", e.getMessage(), e);
+                    }
+                }
+            } finally {
+                executor.shutdown();
+            }
         }
-        executor.shutdown();
 
         logger.info("SslExpiryMonitorTask completed");
     }
 
-      // PER-SERVICE CHECK
     private void checkService(long serviceId, String serviceName, String url) {
         String host = extractHost(url);
         if (host == null || host.isBlank()) {
@@ -120,16 +164,14 @@ public class SslExpiryMonitorTask implements ScheduledTask {
             X509Certificate cert = SslUtils.getServerCert(host, 443);
             if (cert == null) {
                 logger.warn("No certificate found for host {}", host);
+                upsertSslLogFailure(c, serviceId, host);
+                c.commit();
                 return;
             }
 
             Map<String, Object> certInfo = SslUtils.extractCertInfo(cert);
 
-            ZonedDateTime expiry = ZonedDateTime.ofInstant(
-                    cert.getNotAfter().toInstant(),
-                    ZonedDateTime.now().getZone()
-            );
-
+            ZonedDateTime expiry = ZonedDateTime.ofInstant(cert.getNotAfter().toInstant(), ZonedDateTime.now().getZone());
             int daysLeft = (int) Duration.between(ZonedDateTime.now(), expiry).toDays();
 
             upsertSslLog(c, serviceId, host, certInfo, expiry, daysLeft);
@@ -142,17 +184,16 @@ public class SslExpiryMonitorTask implements ScheduledTask {
         }
     }
 
-
     private void upsertSslLog(Connection c, long serviceId, String host, Map<String, Object> certInfo,
                               ZonedDateTime expiry, int daysRemaining) throws SQLException {
 
         String update = """
-                UPDATE ssl_logs SET
-                    issuer = ?, serial_number = ?, signature_algorithm = ?, public_key_algo = ?, public_key_length = ?,
-                    san_list = ?, chain_valid = ?, subject = ?, fingerprint = ?, issued_date = ?, expiry_date = ?,
-                    days_remaining = ?, last_checked = now(), date_modified = now()
-                WHERE monitored_service_id = ? AND domain = ?
-                """;
+            UPDATE ssl_logs SET
+                issuer = ?, serial_number = ?, signature_algorithm = ?, public_key_algo = ?, public_key_length = ?,
+                san_list = ?, chain_valid = ?, subject = ?, fingerprint = ?, issued_date = ?, expiry_date = ?,
+                days_remaining = ?, last_checked = now(), retry_count = 0, date_modified = now()
+            WHERE monitored_service_id = ? AND domain = ?
+        """;
 
         try (PreparedStatement ps = c.prepareStatement(update)) {
             ps.setString(1, (String) certInfo.get("issuer"));
@@ -170,21 +211,19 @@ public class SslExpiryMonitorTask implements ScheduledTask {
             ps.setLong(13, serviceId);
             ps.setString(14, host);
 
-            if (ps.executeUpdate() > 0) {
-                return;
-            }
+            if (ps.executeUpdate() > 0) return;
         }
 
         String insert = """
-                INSERT INTO ssl_logs(
-                    monitored_service_id, domain, issuer, serial_number, signature_algorithm,
-                    public_key_algo, public_key_length, san_list, chain_valid,
-                    subject, fingerprint, issued_date, expiry_date, days_remaining,
-                    last_checked, date_created, date_modified
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), now(), now()
-                )
-                """;
+            INSERT INTO ssl_logs(
+                monitored_service_id, domain, issuer, serial_number, signature_algorithm,
+                public_key_algo, public_key_length, san_list, chain_valid,
+                subject, fingerprint, issued_date, expiry_date, days_remaining,
+                last_checked, retry_count, date_created, date_modified
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), 0, now(), now()
+            )
+        """;
 
         try (PreparedStatement ps = c.prepareStatement(insert)) {
             ps.setLong(1, serviceId);
@@ -205,18 +244,37 @@ public class SslExpiryMonitorTask implements ScheduledTask {
         }
     }
 
+    private void upsertSslLogFailure(Connection c, long serviceId, String host) throws SQLException {
+        String update = """
+            UPDATE ssl_logs SET
+                last_checked = now(), days_remaining = -1, retry_count = retry_count + 1, date_modified = now()
+            WHERE monitored_service_id = ? AND domain = ?
+        """;
+
+        try (PreparedStatement ps = c.prepareStatement(update)) {
+            ps.setLong(1, serviceId);
+            ps.setString(2, host);
+            if (ps.executeUpdate() > 0) return;
+        }
+
+        String insert = """
+            INSERT INTO ssl_logs(monitored_service_id, domain, days_remaining, retry_count, last_checked, date_created, date_modified)
+            VALUES (?, ?, -1, 1, now(), now(), now())
+        """;
+
+        try (PreparedStatement ps = c.prepareStatement(insert)) {
+            ps.setLong(1, serviceId);
+            ps.setString(2, host);
+            ps.executeUpdate();
+        }
+    }
 
     private void checkAndCreateAlerts(Connection c, long serviceId, String serviceName, String host,
                                       Map<String, Object> certInfo, int daysLeft) throws SQLException {
-
         for (int threshold : alertThresholds) {
             if (daysLeft <= threshold && !alertAlreadySent(c, serviceId, threshold)) {
                 insertAlertRecord(c, serviceId, threshold);
-                createSslExpiryEvent(
-                        c, serviceId, serviceName, host,
-                        (String) certInfo.get("issuer"),
-                        daysLeft, threshold
-                );
+                createSslExpiryEvent(c, serviceId, serviceName, host, (String) certInfo.get("issuer"), daysLeft, threshold);
             }
         }
     }
@@ -226,16 +284,12 @@ public class SslExpiryMonitorTask implements ScheduledTask {
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setLong(1, serviceId);
             ps.setInt(2, threshold);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
         }
     }
 
     private void insertAlertRecord(Connection c, long serviceId, int threshold) throws SQLException {
-        String sql =
-                "INSERT INTO ssl_alerts(monitored_service_id, days_remaining, sent_at) " +
-                        "VALUES (?, ?, now()) ON CONFLICT DO NOTHING";
+        String sql = "INSERT INTO ssl_alerts(monitored_service_id, days_remaining, sent_at) VALUES (?, ?, now()) ON CONFLICT DO NOTHING";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setLong(1, serviceId);
             ps.setInt(2, threshold);
@@ -243,12 +297,9 @@ public class SslExpiryMonitorTask implements ScheduledTask {
         }
     }
 
-
     private void createSslExpiryEvent(Connection c, long serviceId, String serviceName,
                                       String host, String issuer, int daysLeft, int threshold) {
-
         String eventType = "SSL_EXPIRING";
-
         Map<String, Object> payload = new HashMap<>();
         payload.put("service_id", serviceId);
         payload.put("service_name", serviceName);
@@ -258,40 +309,24 @@ public class SslExpiryMonitorTask implements ScheduledTask {
         payload.put("threshold", threshold);
         payload.put("checked_at", OffsetDateTime.now().toString());
 
-        String sql =
-                "INSERT INTO event_outbox(event_type, payload, status, retries, created_at, updated_at) " +
-                        "VALUES (?, ?::jsonb, 'PENDING', 0, now(), now())";
-
+        String sql = "INSERT INTO event_outbox(event_type, payload, status, retries, created_at, updated_at) VALUES (?, ?::jsonb, 'PENDING', 0, now(), now())";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, eventType);
             ps.setString(2, mapper.writeValueAsString(payload));
             ps.executeUpdate();
-
-            logger.info(
-                    "SSL alert event created for service {} | threshold {} | daysLeft {}",
-                    serviceName, threshold, daysLeft
-            );
-
+            logger.info("SSL alert event created for service {} | threshold {} | daysLeft {}", serviceName, threshold, daysLeft);
         } catch (Exception e) {
             logger.error("Failed to create SSL expiry event: {}", e.getMessage(), e);
         }
     }
-
 
     private String extractHost(String url) {
         try {
             String cleaned = url.replaceFirst("^https?://", "");
             int slash = cleaned.indexOf('/');
             String host = (slash >= 0) ? cleaned.substring(0, slash) : cleaned;
-
-            int at = host.lastIndexOf('@');
-            if (at >= 0) host = host.substring(at + 1);
-
-            int colon = host.indexOf(':');
-            return (colon >= 0) ? host.substring(0, colon) : host;
-
-        } catch (Exception e) {
-            return url;
-        }
+            int at = host.lastIndexOf('@'); if (at >= 0) host = host.substring(at + 1);
+            int colon = host.indexOf(':'); return (colon >= 0) ? host.substring(0, colon) : host;
+        } catch (Exception e) { return url; }
     }
 }

@@ -26,7 +26,7 @@ public class RestApiServer {
 
 
             PathHandler pathHandler = Handlers.path()
-                    .addPrefixPath(BASE_REST_API_URL + "/health", Routes.health(cfg))
+                    .addPrefixPath(BASE_REST_API_URL + "/system", Routes.health(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/auth",  Routes.auth(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/contacts",  Routes.contactGroups(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/services", Routes.monitoredServices(cfg))

@@ -9,29 +9,57 @@ import java.sql.Timestamp;
 import java.util.*;
 
 /**
- * Loads system-wide defaults and active monitored services
+ * Loads system-wide default Settings and active monitored services
+ *
  */
 public final class SystemSettings {
 
     private SystemSettings() {}
 
     // Holds system-wide defaults
-        public record SystemDefaults(long systemSettingId, String key, String value, String description,
-                                     int uptimeCheckInterval, int uptimeRetryCount, int uptimeRetryDelay,
-                                     int sslCheckInterval, List<Integer> sslAlertThresholds, int notificationCheckInterval,
-                                     int notificationRetryCount, int notificationCooldownMinutes, int version,
-                                     boolean isActive, Timestamp dateCreated, Timestamp dateModified) {
-    }
+    public record SystemDefaults(
+            long systemSettingId,
+            String key,
+            String value,
+            String description,
+            int uptimeCheckInterval,
+            int uptimeRetryCount,
+            int uptimeRetryDelay,
+            int sslCheckInterval,
+            List<Integer> sslAlertThresholds,
+            int notificationCheckInterval,
+            int notificationRetryCount,
+            int notificationCooldownMinutes,
+            int sslRetryCount,
+            int sslRetryDelay,
+            int version,
+            boolean isActive,
+            Timestamp dateCreated,
+            Timestamp dateModified
+    ) {}
 
     // Per-service configuration
-        public record ServiceConfig(long serviceId, UUID uuid, String serviceName, String serviceUrl, String serviceRegion,
-                                    int checkInterval, int retryCount, int retryDelay, int expectedStatusCode,
-                                    boolean sslEnabled, String lastUptimeStatus, int consecutiveFailures, Long createdBy,
-                                    Timestamp lastChecked, Timestamp dateCreated, Timestamp dateModified,
-                                    boolean isActive) {
-    }
+    public record ServiceConfig(
+            long serviceId,
+            UUID uuid,
+            String serviceName,
+            String serviceUrl,
+            String serviceRegion,
+            int checkInterval,
+            int retryCount,
+            int retryDelay,
+            int expectedStatusCode,
+            boolean sslEnabled,
+            String lastUptimeStatus,
+            int consecutiveFailures,
+            Long createdBy,
+            Timestamp lastChecked,
+            Timestamp dateCreated,
+            Timestamp dateModified,
+            boolean isActive
+    ) {}
 
-    // Fetch system-wide defaults from DB
+    // Fetch system-wide default Settings from DB
     public static SystemDefaults loadSystemDefaults(Connection conn) throws Exception {
         String sql = "SELECT * FROM system_settings LIMIT 1";
         try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -57,6 +85,8 @@ public final class SystemSettings {
                         rs.getInt("uptime_retry_delay"),
                         rs.getInt("ssl_check_interval"),
                         thresholds,
+                        rs.getInt("ssl_retry_count"),
+                        rs.getInt("ssl_retry_delay"),
                         rs.getInt("notification_check_interval"),
                         rs.getInt("notification_retry_count"),
                         rs.getInt("notification_cooldown_minutes"),
@@ -70,9 +100,22 @@ public final class SystemSettings {
 
         // fallback defaults
         return new SystemDefaults(
-                0L, "default", null, "Fallback defaults",
-                5, 3, 5, 360, Arrays.asList(30, 14, 7, 3),
-                5, 3, 10, 1, true,
+                0L,
+                "default",
+                null,
+                "Fallback defaults",
+                5,
+                3,
+                5,
+                360,
+                Arrays.asList(30, 14, 7, 3),
+                5,
+                3,
+                10,
+                3,
+                300,
+                1,
+                true,
                 new Timestamp(System.currentTimeMillis()),
                 new Timestamp(System.currentTimeMillis())
         );

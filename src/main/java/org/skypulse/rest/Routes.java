@@ -5,6 +5,7 @@ import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
+import org.skypulse.handlers.TaskController;
 import org.skypulse.handlers.auth.GetUserProfileHandler;
 import org.skypulse.handlers.auth.UserLoginHandler;
 import org.skypulse.handlers.auth.UserSignupHandler;
@@ -20,6 +21,8 @@ import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
 
+import static org.skypulse.Main.appScheduler;
+import static org.skypulse.rest.auth.HandlerFactory.build;
 import static org.skypulse.rest.base.RouteUtils.open;
 import static org.skypulse.rest.base.RouteUtils.secure;
 
@@ -42,7 +45,8 @@ public class Routes {
         long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
-                .get("/", secure(new HealthCheckHandler(), accessTokenTtl))
+                .get("/health", secure(new HealthCheckHandler(), accessTokenTtl))
+                .get("/tasks/reload", secure(build(new TaskController(appScheduler)), accessTokenTtl))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
@@ -78,11 +82,7 @@ public class Routes {
         long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
-                .post("/", new Dispatcher(
-                        new BlockingHandler(
-                                new AuthMiddleware(new SystemSettingsHandlers(), accessTokenTtl)
-                        )
-                ))
+                .post("/", secure(new SystemSettingsHandlers(), accessTokenTtl))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }

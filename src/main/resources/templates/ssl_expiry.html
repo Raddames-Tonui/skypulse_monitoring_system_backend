@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSL Certificate Expiry - {{domain}}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; background: #f3f4f6; margin:0; padding:0;}
+        .container { max-width:600px; margin:20px auto; background:#fff; padding:20px; border-radius:8px;}
+        .header { font-size:18px; color:#F59E0B; font-weight:bold; }
+        .message { font-size:14px; color:#111827; line-height:1.5; }
+        .footer { font-size:12px; color:#6B7280; text-align:center; padding:20px; }
+        .button { background-color:#F59E0B; color:#ffffff; padding:12px 24px; text-decoration:none; font-weight:bold; border-radius:4px; display:inline-block; }
+        @media only screen and (max-width: 480px) {
+            .container { width:95% !important; padding:15px !important; }
+            .button { width:100% !important; display:block !important; text-align:center; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header"> SSL Certificate Expiry Alert</div>
+    <div class="message">
+        <p>SSL certificate for <strong>{{domain}}</strong> (Service: <strong>{{service_name}}</strong>) is approaching expiry.</p>
+        <p><strong>Issuer:</strong> {{issuer}}</p>
+        <p><strong>Checked at:</strong> {{checked_at}}</p>
+        <p><strong>Days Remaining:</strong> {{days_remaining}} days</p>
+        <p><strong>Threshold:</strong> {{threshold}}%</p>
+        <hr/>
+        <p>Please renew the certificate to avoid service disruption.</p>
+    </div>
+
+    <div style="text-align:center; margin:20px 0;">
+        <a href="{{renew_url}}" class="button">Renew SSL Now</a>
+    </div>
+</div>
+
+<div class="footer">
+    SkyPulse Monitoring System<br>
+    123 Innovation Drive, Suite 400<br>
+    Nairobi, Kenya<br>
+    <a href="#" style="color: #2563EB; text-decoration: none;">Privacy Policy</a> |
+    <a href="#" style="color: #2563EB; text-decoration: none;">Terms of Service</a>
+</div>
+</body>
+</html>

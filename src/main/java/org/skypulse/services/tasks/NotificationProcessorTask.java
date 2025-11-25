@@ -27,6 +27,7 @@ import java.util.Map;
 public class NotificationProcessorTask implements ScheduledTask {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProcessorTask.class);
+
     private final NotificationSender sender;
     private final MustacheFactory mustacheFactory = new DefaultMustacheFactory();
     private static final ObjectMapper mapper = JsonUtil.mapper();

@@ -31,7 +31,7 @@ public class EmailSender implements NotificationSender {
         });
 
         this.session.setDebug(true);
-        logger.info("EmailSender initialized for host {}:{}", config.smtpHost, config.smtpPort);
+        logger.info("[---------- EmailSender initialized for host {}:{} ----------]", config.smtpHost, config.smtpPort);
     }
 
     @NotNull

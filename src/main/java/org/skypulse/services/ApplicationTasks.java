@@ -23,32 +23,39 @@ public class ApplicationTasks {
     public static void registerApplicationTasks(boolean dbAvailable, XmlConfiguration cfg) {
         logger.info("[------------ Registering Services ------------]");
 
-        if (dbAvailable) {
-            try (Connection conn = JdbcUtils.getConnection()) {
-                SystemSettings.SystemDefaults defaults = SystemSettings.loadSystemDefaults(conn);
-                List<SystemSettings.ServiceConfig> services = SystemSettings.loadActiveServices(conn);
+        Runnable taskLoader = () -> {
+            if (dbAvailable) {
+                try (Connection conn = JdbcUtils.getConnection()) {
+                    SystemSettings.SystemDefaults defaultSettings = SystemSettings.loadSystemDefaults(conn);
+                    List<SystemSettings.ServiceConfig> services = SystemSettings.loadActiveServices(conn);
 
-                // Register uptime check tasks for each monitored service
-                for (SystemSettings.ServiceConfig service : services) {
-                    appScheduler.register(new UptimeCheckTask(service, defaults));
+                    // 1. Register UPTIME CHECK TASKS for each monitored service
+                    for (SystemSettings.ServiceConfig service : services) {
+                        appScheduler.register(new UptimeCheckTask(service, defaultSettings));
+                    }
+
+                    logger.info("[***** Registered {} Services for Up time check *****]", services.size());
+
+                    // 2. Register NOTIFICATION PROCESSOR TASK with system default Settings
+                    MultiChannelSender sender = new MultiChannelSender();
+                    sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
+                    // sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
+
+                    appScheduler.register(new NotificationProcessorTask(sender, defaultSettings));
+
+                    // 3. Register SSL MONITOR TASK
+                    appScheduler.register(new SslExpiryMonitorTask(defaultSettings));
+
+
+                } catch (Exception e) {
+                    logger.error("Failed to register DB-backed tasks", e);
                 }
-
-                logger.info("Registered {} Services for Up time check", services.size());
-
-                // Register NotificationProcessorTask with system defaults
-                MultiChannelSender sender = new MultiChannelSender();
-                sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
-                // sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
-
-                appScheduler.register(new NotificationProcessorTask(sender, defaults));
-
-                appScheduler.register(new SslExpiryMonitorTask());
-
-
-            } catch (Exception e) {
-                logger.error("Failed to register DB-backed tasks", e);
             }
-        }
+        };
+
+        appScheduler.setTaskLoader(taskLoader);
+        taskLoader.run();
+        appScheduler.start();
 
         logger.info("[------------ Application tasks registered ------------]");
     }
