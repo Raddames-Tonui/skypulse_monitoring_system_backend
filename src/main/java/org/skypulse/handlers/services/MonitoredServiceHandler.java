@@ -38,7 +38,7 @@ public class MonitoredServiceHandler implements HttpHandler {
             return;
         }
 
-        if (!"ADMIN".equalsIgnoreCase(ctx.getRoleName()) && !"OPERATOR".equalsIgnoreCase(ctx.getRoleName())) {
+        if (!"ADMIN".equalsIgnoreCase(ctx.roleName()) && !"OPERATOR".equalsIgnoreCase(ctx.roleName())) {
             ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "User not authorized");
             return;
         }
@@ -65,7 +65,7 @@ public class MonitoredServiceHandler implements HttpHandler {
         Integer expectedStatus = HttpRequestUtil.getInteger(body,"expected_status_code");
         Boolean sslEnabled = (Boolean) body.getOrDefault("ssl_enabled", true);
 
-        long userId = JwtUtil.getUserIdFromUuid(ctx.getUuid().toString());
+        long userId = JwtUtil.getUserIdFromUuid(ctx.uuid().toString());
         Timestamp now = new Timestamp(System.currentTimeMillis());
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {

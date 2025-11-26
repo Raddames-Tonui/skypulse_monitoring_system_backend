@@ -22,6 +22,7 @@ import java.util.UUID;
  * - Validates access & refresh tokens
  * - Auto-refreshes access token if expired
  * - Loads user context from DB
+ *
  */
 public class AuthMiddleware implements HttpHandler {
 
@@ -144,14 +145,6 @@ public class AuthMiddleware implements HttpHandler {
                 if (userUuid != null) {
                     getUserByUuid(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL);
                 }
-            }
-
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE auth_sessions SET last_used_at = ? WHERE jwt_id = ?"
-            )) {
-                ps.setTimestamp(1, Timestamp.from(Instant.now()));
-                ps.setObject(2, jwtId, Types.OTHER);
-                ps.executeUpdate();
             }
 
             UserContext ctx = new UserContext(

@@ -13,13 +13,12 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.*;
 
-@RequireRoles({"ADMIN", "OPERATOR"})
+@RequireRoles({"ADMIN", "OPERATOR", "VIEWER"})
 public class SseServiceStatusHandler extends SseHandler {
 
     private final Logger logger = LoggerFactory.getLogger(SseServiceStatusHandler.class);
 
     public SseServiceStatusHandler() throws Exception {
-        // Use cached ssePushInterval from SystemSettings
         super(0, SystemSettings.loadSystemDefaults().ssePushInterval());
     }
 
@@ -82,7 +81,6 @@ public class SseServiceStatusHandler extends SseHandler {
             logger.error("Error fetching service status for SSE: {}", e.getMessage(), e);
         }
 
-        // Get latest system defaults from cache
         SystemSettings.SystemDefaults systemDefaults;
         try {
             systemDefaults = SystemSettings.loadSystemDefaults();
@@ -99,7 +97,7 @@ public class SseServiceStatusHandler extends SseHandler {
         response.put("services", services);
         response.put("sse_push_interval_seconds", systemDefaults != null
                 ? systemDefaults.ssePushInterval()
-                : 60); // fallback to 60 seconds
+                : 60);
 
         return response;
     }

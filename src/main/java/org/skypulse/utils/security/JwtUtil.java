@@ -26,10 +26,10 @@ public final class JwtUtil {
     /**
      *  Access token generated using the user's UUID as subject and a provided jti (UUID).
      *
-     * @param userUuid user UUID (as string)
-     * @param ttlSeconds token lifetime in seconds
-     * @param jti the JWT ID to set (should match auth_sessions.jwt_id)
-     * @return compact JWT string
+     *  userUuid user UUID (as string)
+     *  ttlSeconds token lifetime in seconds
+     *  jti the JWT ID to set (should match auth_sessions.jwt_id)
+     *  compact JWT string
      */
     public static String generateAccessTokenWithJti(String userUuid, String email, String roleName, long ttlSeconds, UUID jti) {
         String jwtKey = KeyProvider.get("JWT_SIGNING_KEY");

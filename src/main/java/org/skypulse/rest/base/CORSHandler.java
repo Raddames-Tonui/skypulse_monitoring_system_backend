@@ -21,7 +21,7 @@ public class CORSHandler implements HttpHandler {
     public void handleRequest(HttpServerExchange exchange) throws Exception {
 
         exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), allowedOrigin);
-        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), "*");
+//        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), "*");
         exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Credentials"), "true");
         exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Methods"), "GET, POST, OPTIONS, PUT, PATCH, DELETE");
         exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Headers"), "Authorization, AuthToken, RequestReference, Content-Type");

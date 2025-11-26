@@ -1,81 +1,63 @@
-package org.skypulse.services.sse;
+package org.skypulse.handlers.settings;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import io.undertow.server.handlers.sse.ServerSentEventConnection;
-import io.undertow.server.handlers.sse.ServerSentEventConnectionCallback;
-import io.undertow.server.handlers.sse.ServerSentEventHandler;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.util.StatusCodes;
+import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.JsonUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.skypulse.utils.ResponseUtil;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.HashMap;
+import java.util.Map;
 
-public abstract class AbstractSseHandler implements ServerSentEventConnectionCallback {
-
-    protected final Logger logger = LoggerFactory.getLogger(getClass());
-    protected final Set<ServerSentEventConnection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    protected final ServerSentEventHandler handler;
-    protected final ScheduledExecutorService scheduler;
-
-    public AbstractSseHandler(long initialDelaySec, long intervalSec) {
-        this.handler = new ServerSentEventHandler(this);
-        this.scheduler = Executors.newSingleThreadScheduledExecutor();
-        this.scheduler.scheduleAtFixedRate(this::pushToAll, initialDelaySec, intervalSec, TimeUnit.SECONDS);
-    }
-
-    public ServerSentEventHandler getHandler() {
-        return handler;
-    }
-
-    public void shutdown() {
-        if (!scheduler.isShutdown()) {
-            scheduler.shutdown();
-            logger.info("{} scheduler shut down.", getClass().getSimpleName());
-        }
-    }
+/**
+ * GET active system settings
+ */
+public class GetActiveSystemSettingsHandler implements HttpHandler {
 
     @Override
-    public void connected(ServerSentEventConnection connection, String lastEventId) {
-        connections.add(connection);
-        connection.addCloseTask(() -> connections.remove(connection));
-        push(connection);
-        logger.info("New SSE connection established (Last Event ID: {}). Total connections: {}",
-                lastEventId, connections.size());
-    }
+    public void handleRequest(HttpServerExchange exchange) throws Exception {
+        try (Connection conn = DatabaseManager.getDataSource().getConnection()) {
+            String sql = """
+                SELECT *
+                FROM system_settings
+                WHERE is_active = TRUE
+                LIMIT 1
+            """;
 
-    private void pushToAll() {
-        Map<String, Object> data = generateData();
-        String json = serializeToJson(data);
-        if (json != null) {
-            connections.forEach(conn -> {
-                if (conn.isOpen()) conn.send(json);
-            });
+            try (PreparedStatement ps = conn.prepareStatement(sql);
+                 ResultSet rs = ps.executeQuery()) {
+
+                if (rs.next()) {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("system_setting_id", rs.getLong("system_setting_id"));
+                    result.put("uptime_check_interval", rs.getInt("uptime_check_interval"));
+                    result.put("uptime_retry_count", rs.getInt("uptime_retry_count"));
+                    result.put("uptime_retry_delay", rs.getInt("uptime_retry_delay"));
+                    result.put("sse_push_interval", rs.getInt("sse_push_interval"));
+                    result.put("ssl_check_interval", rs.getInt("ssl_check_interval"));
+                    result.put("ssl_alert_thresholds", rs.getString("ssl_alert_thresholds"));
+                    result.put("ssl_retry_count", rs.getInt("ssl_retry_count"));
+                    result.put("ssl_retry_delay", rs.getInt("ssl_retry_delay"));
+                    result.put("notification_check_interval", rs.getInt("notification_check_interval"));
+                    result.put("notification_retry_count", rs.getInt("notification_retry_count"));
+                    result.put("notification_cooldown_minutes", rs.getInt("notification_cooldown_minutes"));
+                    result.put("version", rs.getInt("version"));
+                    result.put("is_active", rs.getBoolean("is_active"));
+                    result.put("changed_by", rs.getObject("changed_by") != null ? rs.getLong("changed_by") : null);
+                    result.put("date_created", rs.getTimestamp("date_created"));
+                    result.put("date_modified", rs.getTimestamp("date_modified"));
+
+                    ResponseUtil.sendJson(exchange, StatusCodes.OK, JsonUtil.mapper().writeValueAsString(result));
+                } else {
+                    ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, "No active system settings found");
+                }
+            }
+        } catch (Exception e) {
+            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
-
-    private void push(ServerSentEventConnection connection) {
-        Map<String, Object> data = generateData();
-        String json = serializeToJson(data);
-        if (json != null && connection.isOpen()) {
-            connection.send(json);
-        }
-    }
-
-    private String serializeToJson(Map<String, Object> data) {
-        try {
-            return JsonUtil.mapper().writeValueAsString(data);
-        } catch (JsonProcessingException e) {
-            logger.error("Error serializing SSE payload: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-
-    /**
-     * Subclasses implement this to provide the data for SSE push.
-     */
-    protected abstract Map<String, Object> generateData();
 }

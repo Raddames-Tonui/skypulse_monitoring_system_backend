@@ -37,7 +37,7 @@ public class CreateContactGroupHandler implements HttpHandler {
             return;
         }
 
-        long adminId = ctx.getUserId();
+        long adminId = ctx.userId();
 
         String groupName = HttpRequestUtil.getString(body, "contact_group_name");
         String groupDescription = HttpRequestUtil.getString(body, "contact_group_description");

@@ -509,8 +509,6 @@ CREATE TABLE audit_log (
 
 CREATE TABLE system_settings (
     system_setting_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    key               VARCHAR(150) NOT NULL,       -- category of the setting
-    description       TEXT,
 
     uptime_check_interval INT,      -- seconds
     uptime_retry_count    INT,

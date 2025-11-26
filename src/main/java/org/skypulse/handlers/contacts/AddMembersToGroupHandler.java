@@ -31,7 +31,7 @@ public class AddMembersToGroupHandler implements HttpHandler {
             return;
         }
 
-        if (!"ADMIN".equals(ctx.getRoleName())) {
+        if (!"ADMIN".equals(ctx.roleName())) {
             ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "Insufficient permissions");
             return;
         }
@@ -76,7 +76,7 @@ public class AddMembersToGroupHandler implements HttpHandler {
                 }
             }
 
-            logger.info("Adding {} members to group {} (UUID={}) by user {}", members.size(), groupId, groupUuid, ctx.getEmail());
+            logger.info("Adding {} members to group {} (UUID={}) by user {}", members.size(), groupId, groupUuid, ctx.email());
 
             PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO contact_group_members (contact_group_id, user_id, is_primary)

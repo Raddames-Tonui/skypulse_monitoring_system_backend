@@ -48,7 +48,7 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
         Map<String, Object> service = new HashMap<>(result.getFirst());
         service.remove("monitored_service_id");
 
-        ResponseUtil.sendJson(exchange, StatusCodes.OK, service);
+        ResponseUtil.sendSuccess(exchange, "Monitored Service fetched successfully.", service);
     }
 
 

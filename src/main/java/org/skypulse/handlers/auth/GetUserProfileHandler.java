@@ -2,7 +2,6 @@ package org.skypulse.handlers.auth;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
-import org.apache.xpath.operations.Bool;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserContext;
 import org.skypulse.utils.ResponseUtil;
@@ -23,14 +22,14 @@ public class GetUserProfileHandler implements HttpHandler {
             return;
         }
 
-        long userId = ctx.getUserId();
+        long userId = ctx.userId();
 
         Map<String, Object> data = new HashMap<>();
-        data.put("uuid", ctx.getUuid().toString());
-        data.put("full_name", ctx.getFirstName() + " " + ctx.getLastName());
-        data.put("email", ctx.getEmail());
-        data.put("role_name", ctx.getRoleName());
-        data.put("company_name", ctx.getCompanyName());
+        data.put("uuid", ctx.uuid().toString());
+        data.put("full_name", ctx.firstName() + " " + ctx.lastName());
+        data.put("email", ctx.email());
+        data.put("role_name", ctx.roleName());
+        data.put("company_name", ctx.companyName());
 
         Map<String, Object> pref = new HashMap<>();
         pref.put("alert_channel", "email");

@@ -2,52 +2,42 @@ package org.skypulse.utils;
 
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.JdbcUtils;
-import org.skypulse.utils.security.JwtUtil;
+import org.skypulse.config.database.dtos.UserContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.SQLException;
 
 /**
  * Log a user action to the audit_log table
- * -  exchange   HttpServerExchange to extract JWT token and IP
- * -  entity     Table or entity affected
- * -  entityId   ID of the affected entity
- * -  action - Action performed: CREATE / UPDATE / DELETE
- * -  beforeData  state before change (nullable)
- * -  afterData   state after change (nullable)
+ * - entity     Table or entity affected
+ * - entityId   ID of the affected entity
+ * - action     Action performed: CREATE / UPDATE / DELETE / ROLLBACK
+ * - beforeData state before change (nullable)
+ * - afterData  state after change (nullable)
  */
 public class AuditLogger {
     private static final Logger logger = LoggerFactory.getLogger(AuditLogger.class);
 
     private AuditLogger() {}
 
-    public static void log(HttpServerExchange exchange, String entity, Long entityId, String action, String beforeData, String afterData) throws SQLException {
+    public static void log(HttpServerExchange exchange, String entity, Long entityId, String action,
+                           String beforeData, String afterData) {
         if (exchange == null) {
             logger.warn("Audit log skipped: HttpServerExchange is null");
             return;
         }
 
-        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            logger.warn("Audit log skipped: HttpServerExchange is null");
+        UserContext userContext = exchange.getAttachment(UserContext.ATTACHMENT_KEY);
+        if (userContext == null) {
+            logger.warn("Audit log skipped: UserContext not found in exchange");
             return;
         }
 
-        String token = authHeader.substring("Bearer ".length());
-
-        long userId;
-        try {
-            String userUuid = JwtUtil.getUserUUId(token);
-            if (userUuid == null) {
-                logger.warn("Audit log skipped: cannot extract user UUID from JWT token");
-                return;
-            }
-            userId = JwtUtil.getUserIdFromUuid(userUuid);
-        } catch (Exception e) {
-            logger.warn("Audit log failed: {}", e.getMessage(), e);
+        Long userId = userContext.userId();
+        if (userId == null) {
+            logger.warn("Audit log skipped: userId is null in UserContext");
             return;
         }
 
@@ -56,15 +46,15 @@ public class AuditLogger {
                 : "unknown";
 
         try (Connection conn = JdbcUtils.getConnection()) {
-             String sql = """
-                        INSERT INTO audit_log (user_id, entity, entity_id, action, before_data, after_data, ip_address,date_created,date_modified )
-                        VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, NOW(), NOW());
-                        """;
+            String sql = """
+                    INSERT INTO audit_log (user_id, entity, entity_id, action, before_data, after_data, ip_address, date_created, date_modified)
+                    VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, NOW(), NOW());
+                    """;
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setLong(1, userId);
                 ps.setString(2, entity);
-                if (entityId != null ){
+                if (entityId != null) {
                     ps.setLong(3, entityId);
                 } else {
                     ps.setNull(3, java.sql.Types.BIGINT);
@@ -79,6 +69,5 @@ public class AuditLogger {
         } catch (Exception e) {
             logger.error("Failed to insert audit log: {}", e.getMessage(), e);
         }
-
     }
 }

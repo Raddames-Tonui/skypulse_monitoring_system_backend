@@ -9,24 +9,15 @@ import java.sql.ResultSet;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public final class SystemSettings {
 
     private static final Logger logger = LoggerFactory.getLogger(SystemSettings.class);
-    private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-
-    private static volatile SystemDefaults cachedDefaults;
-    private static volatile List<ServiceConfig> cachedServices;
 
     private SystemSettings() {}
 
     public record SystemDefaults(
             long systemSettingId,
-            String key,
-            String description,
             int uptimeCheckInterval,
             int uptimeRetryCount,
             int uptimeRetryDelay,
@@ -65,9 +56,11 @@ public final class SystemSettings {
             boolean isActive
     ) {}
 
-    public static SystemDefaults loadSystemDefaultsFromDB(Connection conn) throws Exception {
-        String sql = "SELECT * FROM system_settings LIMIT 1";
-        try (PreparedStatement ps = conn.prepareStatement(sql);
+    public static SystemDefaults loadSystemDefaults() throws Exception {
+        String sql = "SELECT * FROM system_settings WHERE is_active = TRUE LIMIT 1";
+
+        try (Connection conn = JdbcUtils.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
 
             if (rs.next()) {
@@ -82,8 +75,6 @@ public final class SystemSettings {
 
                 return new SystemDefaults(
                         rs.getLong("system_setting_id"),
-                        rs.getString("key"),
-                        rs.getString("description"),
                         rs.getInt("uptime_check_interval"),
                         rs.getInt("uptime_retry_count"),
                         rs.getInt("uptime_retry_delay"),
@@ -104,34 +95,15 @@ public final class SystemSettings {
             }
         }
 
-        return new SystemDefaults(
-                0L,
-                "default",
-                "Fallback defaults",
-                5,
-                3,
-                5,
-                60,
-                360,
-                Arrays.asList(30, 14, 7, 3),
-                3,
-                360,
-                300,
-                3,
-                10,
-                1,
-                true,
-                null,
-                new Timestamp(System.currentTimeMillis()),
-                new Timestamp(System.currentTimeMillis())
-        );
+        throw new IllegalStateException("No active system settings found");
     }
 
-    public static List<ServiceConfig> loadActiveServicesFromDB(Connection conn) throws Exception {
+    public static List<ServiceConfig> loadActiveServices() throws Exception {
         List<ServiceConfig> services = new ArrayList<>();
         String sql = "SELECT * FROM monitored_services WHERE is_active = TRUE";
 
-        try (PreparedStatement ps = conn.prepareStatement(sql);
+        try (Connection conn = JdbcUtils.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
@@ -160,39 +132,10 @@ public final class SystemSettings {
         return services;
     }
 
-    public static SystemDefaults loadSystemDefaults() throws Exception {
-        if (cachedDefaults == null) refreshCache();
-        return cachedDefaults;
-    }
-
-    public static List<ServiceConfig> loadActiveServices() throws Exception {
-        if (cachedServices == null) refreshCache();
-        return cachedServices;
-    }
-
     public static Map<String, Object> loadAll() throws Exception {
-        if (cachedDefaults == null || cachedServices == null) refreshCache();
         Map<String, Object> result = new HashMap<>();
-        result.put("systemDefaults", cachedDefaults);
-        result.put("services", cachedServices);
+        result.put("systemDefaults", loadSystemDefaults());
+        result.put("services", loadActiveServices());
         return result;
-    }
-
-    private static synchronized void refreshCache() {
-        try (Connection conn = JdbcUtils.getConnection()) {
-            cachedDefaults = loadSystemDefaultsFromDB(conn);
-            cachedServices = loadActiveServicesFromDB(conn);
-            logger.info("SystemSettings cache refreshed successfully");
-        } catch (Exception e) {
-            logger.error("Failed to refresh SystemSettings cache", e);
-        }
-    }
-
-    public static void startScheduledRefresh(long refreshIntervalMinutes) {
-        refreshCache();
-        scheduler.scheduleAtFixedRate(SystemSettings::refreshCache,
-                refreshIntervalMinutes,
-                refreshIntervalMinutes,
-                TimeUnit.MINUTES);
     }
 }

@@ -8,7 +8,10 @@ import org.skypulse.utils.ResponseUtil;
 
 import java.util.HashSet;
 import java.util.Set;
-
+/**
+ * Enforces Role based access Control
+ * Check permissions before next handler
+ * */
 public class SecureHandler implements HttpHandler {
 
     private final HttpHandler next;
@@ -29,7 +32,7 @@ public class SecureHandler implements HttpHandler {
             return;
         }
 
-        String  role = ctx.getRoleName().toUpperCase();
+        String  role = ctx.roleName().toUpperCase();
 
         if (!allowedRoles.contains(role)) {
             ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "User not Authorized");

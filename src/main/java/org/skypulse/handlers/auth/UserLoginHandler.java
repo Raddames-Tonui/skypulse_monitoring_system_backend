@@ -24,7 +24,6 @@ public class UserLoginHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
     private final ObjectMapper mapper = JsonUtil.mapper();
-
     private final long ACCESS_TOKEN_TTL;
     private final long REFRESH_TOKEN_TTL;
 
@@ -109,7 +108,6 @@ public class UserLoginHandler implements HttpHandler {
 
             Instant now = Instant.now();
 
-            // Create auth_session
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
 
@@ -147,14 +145,22 @@ public class UserLoginHandler implements HttpHandler {
             refreshCookie.setMaxAge((int) REFRESH_TOKEN_TTL);
             exchange.setResponseCookie(refreshCookie);
 
-            Map<String, Object> userData = Map.of(
-                    "uuid", userUuid,
-                    "fullName", firstName + " " + lastName,
-                    "email", email,
-                    "role", roleName
-            );
+            Map<String, Object> profile = new HashMap<>();
+            profile.put("uuid", userUuid);
+            profile.put("full_name", firstName + " " + lastName);
+            profile.put("email", email);
+            profile.put("role_name", roleName);
+            profile.put("company_name", null);
+            profile.put("user_contacts", Collections.emptyList());
+            profile.put("user_preferences", Map.of(
+                    "alert_channel", "email",
+                    "receive_weekly_reports", true,
+                    "timezone", "UTC",
+                    "language", "en",
+                    "dashboard_layout", Map.of("type", "jsonb", "value", "{}", "null", false)
+            ));
 
-            Map<String, Object> data = Map.of("user", userData);
+            Map<String, Object> data = Map.of("user", profile);
 
             ResponseUtil.sendSuccess(exchange, "Login successful", data);
 

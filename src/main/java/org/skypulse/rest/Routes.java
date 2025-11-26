@@ -2,28 +2,26 @@ package org.skypulse.rest;
 
 import io.undertow.Handlers;
 import io.undertow.server.RoutingHandler;
-import org.skypulse.config.database.JdbcUtils;
-import org.skypulse.config.database.dtos.SystemSettings;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
 import org.skypulse.handlers.TaskController;
 import org.skypulse.handlers.auth.GetUserProfileHandler;
+import org.skypulse.handlers.auth.LogoutHandler;
 import org.skypulse.handlers.auth.UserLoginHandler;
 import org.skypulse.handlers.auth.UserSignupHandler;
-import org.skypulse.handlers.auth.LogoutHandler;
 import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
 import org.skypulse.handlers.contacts.CreateContactGroupHandler;
-import org.skypulse.handlers.services.GetMonitoredServiceHandler;
+import org.skypulse.handlers.logs.GetUptimeLogsHandler;
+import org.skypulse.handlers.services.GetMonitoredServices;
 import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
+import org.skypulse.handlers.settings.GetActiveSystemSettingsHandler;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
-import org.skypulse.services.sse.SseHealthCheckHandler;
-import org.skypulse.services.sse.SseServiceStatusHandler;
 import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
-
-import java.sql.Connection;
+import org.skypulse.services.sse.SseHealthCheckHandler;
+import org.skypulse.services.sse.SseServiceStatusHandler;
 
 import static org.skypulse.Main.appScheduler;
 import static org.skypulse.rest.auth.HandlerFactory.build;
@@ -33,71 +31,74 @@ import static org.skypulse.rest.base.RouteUtils.secure;
 public class Routes {
 
     public static RoutingHandler auth(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
                 .post("/login", open(new UserLoginHandler(cfg)))
                 .post("/register", open(new UserSignupHandler()))
-                .get("/profile", secure(new GetUserProfileHandler(), accessTokenTtl))
-                .post("/logout", secure(new LogoutHandler(), accessTokenTtl))
+                .get("/profile", secure(new GetUserProfileHandler(), accessToken))
+                .post("/logout", secure(new LogoutHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
     public static RoutingHandler health(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
-                .get("/health", secure(new HealthCheckHandler(), accessTokenTtl))
-                .get("/tasks/reload", secure(build(new TaskController(appScheduler)), accessTokenTtl))
+                .get("/health", secure(new HealthCheckHandler(), accessToken))
+                .get("/tasks/reload", secure(build(new TaskController(appScheduler)), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
 
     public static RoutingHandler contactGroups(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
 
-                .post("/groups", secure(new CreateContactGroupHandler(), accessTokenTtl))
-                .post("/groups/{id}/members",secure(new AddMembersToGroupHandler(), accessTokenTtl))
-                .post("/groups/members/{uuid}", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
+                .post("/groups", secure(new CreateContactGroupHandler(), accessToken))
+                .post("/groups/{id}/members",secure(new AddMembersToGroupHandler(), accessToken))
+                .post("/groups/members/{uuid}", secure(new GetSingleMonitoredServiceHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
 
     public static RoutingHandler monitoredServices(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
-                .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessTokenTtl))
-                .get("/", secure(new GetMonitoredServiceHandler(), accessTokenTtl))
-                .post("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
-                .put("/", secure(new MonitoredServiceHandler(), accessTokenTtl))
+                .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessToken))
+                .get("", secure(new GetMonitoredServices(), accessToken))
+                .get("/logs/uptime", secure(new GetUptimeLogsHandler(), accessToken))
+                .post("/", secure(new MonitoredServiceHandler(), accessToken))
+                .put("/", secure(new MonitoredServiceHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
 
     public static RoutingHandler systemSettings(XmlConfiguration cfg) {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
-                .post("/", secure(new SystemSettingsHandlers(), accessTokenTtl))
+                .post("/", secure(new SystemSettingsHandlers(), accessToken))
+                .post("/rollback", secure(new SystemSettingsHandlers(), accessToken))
+                .get("/", secure(new GetActiveSystemSettingsHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
     public static RoutingHandler serverSentEvents(XmlConfiguration cfg) throws Exception {
-        long accessTokenTtl = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         SseHealthCheckHandler sseHealthCheckHandler = new SseHealthCheckHandler();
         SseServiceStatusHandler sseServiceStatusHandler = new SseServiceStatusHandler();
 
         return Handlers.routing()
-                .get("/health", secure(sseHealthCheckHandler.getHandler(), accessTokenTtl))
+                .get("/health", secure(sseHealthCheckHandler.getHandler(), accessToken))
                 .get("/service-status", open(sseServiceStatusHandler.getHandler()))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));

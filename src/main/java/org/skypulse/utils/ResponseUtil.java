@@ -39,7 +39,6 @@ public class ResponseUtil {
 
     public static void sendSuccess(HttpServerExchange exchange, String message, Object data) {
         Map<String, Object> res = new HashMap<>();
-        res.put("status", "success");
         res.put("message", message);
         if (data != null) {
             res.put("data", data);
@@ -58,14 +57,14 @@ public class ResponseUtil {
     }
 
 
-    public static void sendPaginated(HttpServerExchange exchange, String domain,  int page, int pageSize, int totalCount, List<?> records) {
+    public static void sendPaginated(HttpServerExchange exchange, String domain,  int page, int pageSize, int totalCount, List<?> data) {
         Map<String, Object> res = new HashMap<>();
         res.put("domain", domain);
         res.put("current_page", page);
         res.put("last_page", (int) Math.ceil((double) totalCount / pageSize));
         res.put("page_size", pageSize);
         res.put("total_count", totalCount);
-        res.put("records", records);
+        res.put("data", data);
         sendJson(exchange, StatusCodes.OK, res);
     }
 
