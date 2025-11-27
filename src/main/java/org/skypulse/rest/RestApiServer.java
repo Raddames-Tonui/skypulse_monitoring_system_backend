@@ -30,7 +30,8 @@ public class RestApiServer {
                     .addPrefixPath(BASE_REST_API_URL + "/contacts",  Routes.contactGroups(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/services", Routes.monitoredServices(cfg))
                     .addPrefixPath(BASE_REST_API_URL+"/settings", Routes.systemSettings(cfg))
-                    .addPrefixPath(BASE_REST_API_URL+"/sse", Routes.serverSentEvents(cfg));
+                    .addPrefixPath(BASE_REST_API_URL+"/sse", Routes.serverSentEvents(cfg))
+                    .addPrefixPath(BASE_REST_API_URL+"/users", Routes.users(cfg));
 
 
 

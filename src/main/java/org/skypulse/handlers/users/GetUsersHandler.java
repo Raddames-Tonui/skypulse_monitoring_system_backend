@@ -47,12 +47,10 @@ public class GetUsersHandler implements HttpHandler {
 
         Map<String, Deque<String>> params = exchange.getQueryParameters();
 
-        // --- Parse pagination ---
         int page = DatabaseUtils.parseIntParam(params.get("page"), 1);
         int pageSize = DatabaseUtils.parseIntParam(params.get("pageSize"), 20);
         int offset = DatabaseUtils.calcOffset(page, pageSize);
 
-        // --- Parse filters ---
         List<DatabaseUtils.FilterRule> filterRules = new ArrayList<>();
         for (Map.Entry<String, String> entry : FILTERABLE_MAP.entrySet()) {
             String shortName = entry.getKey();
@@ -64,7 +62,6 @@ public class GetUsersHandler implements HttpHandler {
         }
         DatabaseUtils.FilterResult filterResult = DatabaseUtils.buildFiltersFromRules(filterRules, COLUMN_TYPES, true);
 
-        // --- Parse sorting ---
         List<DatabaseUtils.SortRule> sortRules = new ArrayList<>();
         Deque<String> sortParam = params.get("sort");
         if (sortParam != null && !sortParam.isEmpty()) {
@@ -79,7 +76,6 @@ public class GetUsersHandler implements HttpHandler {
         }
         String orderBy = DatabaseUtils.buildOrderBy(sortRules, new HashSet<>(SORTABLE_MAP.values()));
 
-        // --- Build SQL ---
         String baseSql = """
             FROM users u
             LEFT JOIN roles r ON u.role_id = r.role_id
@@ -94,26 +90,22 @@ public class GetUsersHandler implements HttpHandler {
                    c.company_id, c.company_name
             """ + baseSql + " WHERE 1=1 " + filterResult.sql() + orderBy + " LIMIT ? OFFSET ?";
 
-        // --- Prepare parameters ---
         List<Object> dataParams = new ArrayList<>(filterResult.params());
         dataParams.add(pageSize);
         dataParams.add(offset);
         List<Object> countParams = new ArrayList<>(filterResult.params());
 
-        // --- Execute queries ---
-        int total = ((Number) DatabaseUtils.query(countSql, countParams).get(0).get("total")).intValue();
+        int total = ((Number) DatabaseUtils.query(countSql, countParams).getFirst().get("total")).intValue();
         List<Map<String, Object>> users = DatabaseUtils.query(dataSql, dataParams);
 
-        // --- Assign incremental IDs and remove internal IDs ---
         for (int i = 0; i < users.size(); i++) {
             Map<String, Object> u = users.get(i);
-            u.put("id", i + 1 + offset); // frontend incremental ID
+            u.put("id", i + 1 + offset);
             u.remove("user_id");
             u.remove("role_id");
             u.remove("company_id");
         }
 
-        // --- Send paginated response ---
         ResponseUtil.sendPaginated(exchange, "users", page, pageSize, total, users);
     }
 }

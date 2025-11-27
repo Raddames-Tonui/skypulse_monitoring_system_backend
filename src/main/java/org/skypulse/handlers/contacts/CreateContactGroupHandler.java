@@ -4,6 +4,8 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
+import org.skypulse.rest.auth.RequireRoles;
+import org.skypulse.utils.AuditLogger;
 import org.skypulse.utils.HttpRequestUtil;
 import org.skypulse.utils.ResponseUtil;
 import org.skypulse.config.database.dtos.UserContext;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+@RequireRoles({"ADMIN"})
 public class CreateContactGroupHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(CreateContactGroupHandler.class);
@@ -24,21 +27,20 @@ public class CreateContactGroupHandler implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
 
+        // --- Parse JSON body ---
         Map<String, Object> body = HttpRequestUtil.parseJson(exchange);
         if (body == null) {
             logger.warn("Invalid JSON received when creating contact group");
+            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid JSON body");
             return;
         }
 
+        // --- Get user context ---
         UserContext ctx = exchange.getAttachment(UserContext.ATTACHMENT_KEY);
-        if (ctx == null) {
-            logger.warn("Unauthorized request to create contact group");
-            ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Unauthorized");
-            return;
-        }
 
         long adminId = ctx.userId();
 
+        // --- Extract input fields ---
         String groupName = HttpRequestUtil.getString(body, "contact_group_name");
         String groupDescription = HttpRequestUtil.getString(body, "contact_group_description");
         List<Integer> memberIds = (List<Integer>) body.get("members_ids");
@@ -56,7 +58,7 @@ public class CreateContactGroupHandler implements HttpHandler {
 
             long groupId;
 
-            // Insert group
+            // --- Insert contact group ---
             String insertGroupSql = """
                 INSERT INTO contact_groups (contact_group_name, contact_group_description, created_by)
                 VALUES (?, ?, ?)
@@ -82,7 +84,11 @@ public class CreateContactGroupHandler implements HttpHandler {
 
             logger.debug("Contact group created with ID {} by admin {}", groupId, adminId);
 
-            // Insert members
+            // --- Audit log for group creation ---
+            AuditLogger.log(exchange, "contact_groups", groupId, "CREATE", null,
+                    String.format("{\"contact_group_name\":\"%s\",\"contact_group_description\":\"%s\"}", groupName, groupDescription));
+
+            // --- Insert group members ---
             if (memberIds != null && !memberIds.isEmpty()) {
                 logger.debug("Adding {} members to group {}", memberIds.size(), groupId);
 
@@ -92,13 +98,19 @@ public class CreateContactGroupHandler implements HttpHandler {
                     ON CONFLICT (contact_group_id, user_id) DO NOTHING;
                 """;
 
-                try (PreparedStatement ps = conn.prepareStatement(insertMembersSql)) {
-                    for (Integer memberId : memberIds) {
+                for (Integer memberId : memberIds) {
+                    // BeforeData: null since this is a new association
+                    String beforeData = null;
+                    String afterData = String.format("{\"contact_group_id\":%d,\"user_id\":%d}", groupId, memberId);
+
+                    try (PreparedStatement ps = conn.prepareStatement(insertMembersSql)) {
                         ps.setLong(1, groupId);
                         ps.setLong(2, memberId);
-                        ps.addBatch();
+                        ps.executeUpdate();
+
+                        // Audit log for each member addition
+                        AuditLogger.log(exchange, "contact_group_members", null, "CREATE", beforeData, afterData);
                     }
-                    ps.executeBatch();
                 }
 
                 logger.info("Added {} members to group {}", memberIds.size(), groupId);
@@ -110,7 +122,7 @@ public class CreateContactGroupHandler implements HttpHandler {
 
             ResponseUtil.sendCreated(exchange,
                     "Contact group created successfully",
-                    Map.of("groupName", groupName)
+                    Map.of("groupName", groupName, "groupId", groupId)
             );
 
         } catch (Exception e) {

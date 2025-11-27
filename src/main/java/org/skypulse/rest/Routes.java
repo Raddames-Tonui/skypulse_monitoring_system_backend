@@ -18,6 +18,8 @@ import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
 import org.skypulse.handlers.settings.GetActiveSystemSettingsHandler;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
+import org.skypulse.handlers.users.GetUserDetailHandler;
+import org.skypulse.handlers.users.GetUsersHandler;
 import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
@@ -51,6 +53,14 @@ public class Routes {
                 .get("/tasks/reload", secure(build(new TaskController(appScheduler)), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
+    }  public static RoutingHandler users(XmlConfiguration cfg) {
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+                .get("", secure(new GetUsersHandler(), accessToken))
+                .get("/user", secure(new GetUserDetailHandler(), accessToken))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
 
@@ -75,8 +85,8 @@ public class Routes {
                 .get("", secure(new GetMonitoredServices(), accessToken))
                 .get("/logs/uptime", secure(new GetUptimeLogsHandler(), accessToken))
                 .get("/logs/ssl", secure(new GetSSLLogsHandler(), accessToken))
-                .post("/", secure(new MonitoredServiceHandler(), accessToken))
-                .put("/", secure(new MonitoredServiceHandler(), accessToken))
+                .post("", secure(new MonitoredServiceHandler(), accessToken))
+                .put("", secure(new MonitoredServiceHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
