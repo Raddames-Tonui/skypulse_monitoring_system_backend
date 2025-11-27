@@ -27,7 +27,6 @@ public class CreateContactGroupHandler implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
 
-        // --- Parse JSON body ---
         Map<String, Object> body = HttpRequestUtil.parseJson(exchange);
         if (body == null) {
             logger.warn("Invalid JSON received when creating contact group");
@@ -35,12 +34,10 @@ public class CreateContactGroupHandler implements HttpHandler {
             return;
         }
 
-        // --- Get user context ---
         UserContext ctx = exchange.getAttachment(UserContext.ATTACHMENT_KEY);
 
         long adminId = ctx.userId();
 
-        // --- Extract input fields ---
         String groupName = HttpRequestUtil.getString(body, "contact_group_name");
         String groupDescription = HttpRequestUtil.getString(body, "contact_group_description");
         List<Integer> memberIds = (List<Integer>) body.get("members_ids");
@@ -58,7 +55,6 @@ public class CreateContactGroupHandler implements HttpHandler {
 
             long groupId;
 
-            // --- Insert contact group ---
             String insertGroupSql = """
                 INSERT INTO contact_groups (contact_group_name, contact_group_description, created_by)
                 VALUES (?, ?, ?)
@@ -84,11 +80,9 @@ public class CreateContactGroupHandler implements HttpHandler {
 
             logger.debug("Contact group created with ID {} by admin {}", groupId, adminId);
 
-            // --- Audit log for group creation ---
             AuditLogger.log(exchange, "contact_groups", groupId, "CREATE", null,
                     String.format("{\"contact_group_name\":\"%s\",\"contact_group_description\":\"%s\"}", groupName, groupDescription));
 
-            // --- Insert group members ---
             if (memberIds != null && !memberIds.isEmpty()) {
                 logger.debug("Adding {} members to group {}", memberIds.size(), groupId);
 
@@ -99,7 +93,6 @@ public class CreateContactGroupHandler implements HttpHandler {
                 """;
 
                 for (Integer memberId : memberIds) {
-                    // BeforeData: null since this is a new association
                     String beforeData = null;
                     String afterData = String.format("{\"contact_group_id\":%d,\"user_id\":%d}", groupId, memberId);
 
@@ -108,7 +101,6 @@ public class CreateContactGroupHandler implements HttpHandler {
                         ps.setLong(2, memberId);
                         ps.executeUpdate();
 
-                        // Audit log for each member addition
                         AuditLogger.log(exchange, "contact_group_members", null, "CREATE", beforeData, afterData);
                     }
                 }

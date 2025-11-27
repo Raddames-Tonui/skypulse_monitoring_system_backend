@@ -16,7 +16,7 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (exchange.isInIoThread())       if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
+        if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
 
 
         Deque<String> uuidParam = exchange.getQueryParameters().get("uuid");
@@ -93,7 +93,6 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
         Set<Long> seenMaintenance = new HashSet<>();
 
         for (Map<String, Object> row : rows) {
-            // Service details (only once)
             if (service.isEmpty()) {
                 service.put("uuid", row.get("uuid"));
                 service.put("name", row.get("monitored_service_name"));
@@ -111,7 +110,6 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
                 service.put("date_modified", row.get("date_modified"));
                 service.put("is_active", row.get("is_active"));
 
-                // Creator info
                 Map<String, Object> creator = new HashMap<>();
                 creator.put("id", row.get("creator_id"));
                 creator.put("first_name", row.get("creator_first_name"));

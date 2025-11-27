@@ -31,10 +31,7 @@ public class AddMembersToGroupHandler implements HttpHandler {
             return;
         }
 
-        if (!"ADMIN".equals(ctx.roleName())) {
-            ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "Insufficient permissions");
-            return;
-        }
+
 
         String groupUuidStr = exchange.getQueryParameters().get("id") != null ?
                 exchange.getQueryParameters().get("id").getFirst() : null;

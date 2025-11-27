@@ -11,11 +11,14 @@ import org.skypulse.handlers.auth.UserLoginHandler;
 import org.skypulse.handlers.auth.UserSignupHandler;
 import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
 import org.skypulse.handlers.contacts.CreateContactGroupHandler;
+import org.skypulse.handlers.contacts.GetContactGroupsHandler;
+import org.skypulse.handlers.contacts.GetSingleContactGroupHandler;
 import org.skypulse.handlers.logs.GetSSLLogsHandler;
 import org.skypulse.handlers.logs.GetUptimeLogsHandler;
 import org.skypulse.handlers.services.GetMonitoredServices;
 import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
+import org.skypulse.handlers.services.UpdateMonitoredServiceHandler;
 import org.skypulse.handlers.services.service.GetSingleServiceHandler;
 import org.skypulse.handlers.settings.GetActiveSystemSettingsHandler;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
@@ -73,6 +76,8 @@ public class Routes {
                 .post("/groups", secure(new CreateContactGroupHandler(), accessToken))
                 .post("/groups/{id}/members",secure(new AddMembersToGroupHandler(), accessToken))
                 .post("/groups/members/{uuid}", secure(new GetSingleMonitoredServiceHandler(), accessToken))
+                .get("/groups" , secure(new GetContactGroupsHandler(), accessToken))
+                .get("/group" , secure(new GetSingleContactGroupHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
@@ -84,11 +89,10 @@ public class Routes {
         return Handlers.routing()
                 .get("", secure(new GetMonitoredServices(), accessToken))
                 .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessToken))
-//                .get("/service", secure(new GetSingleServiceHandler(), accessToken))
                 .get("/logs/uptime", secure(new GetUptimeLogsHandler(), accessToken))
                 .get("/logs/ssl", secure(new GetSSLLogsHandler(), accessToken))
-                .post("", secure(new MonitoredServiceHandler(), accessToken))
-                .put("", secure(new MonitoredServiceHandler(), accessToken))
+                .post("/create", secure(new MonitoredServiceHandler(), accessToken))
+                .put("/update", secure(new UpdateMonitoredServiceHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }

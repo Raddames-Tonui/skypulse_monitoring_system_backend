@@ -391,10 +391,8 @@ BEFORE UPDATE ON incidents
 FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
 -- Maintenance windows
---/**
---    -- Skip uptime checks for services covered by an active maintenance window.
---    -- Suppress alerts or notifications (no downtime events).
---*/
+    -- Skip uptime checks for services covered by an active maintenance window.
+ -- Suppress alerts or notifications (no downtime events).
 CREATE TABLE maintenance_windows (
   maintenance_window_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uuid                   UUID UNIQUE DEFAULT gen_random_uuid(),

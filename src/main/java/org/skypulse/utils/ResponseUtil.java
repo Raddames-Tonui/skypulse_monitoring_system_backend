@@ -19,8 +19,12 @@ public class ResponseUtil {
     public static void sendJson(HttpServerExchange exchange, int status, Map<String, Object> body) {
         try {
             exchange.setStatusCode(status);
-            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json; charset=utf-8");
+            exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "utf-8");
+
             String json = mapper.writeValueAsString(body);
+
             exchange.getResponseSender().send(json);
 
             logger.debug("Response sent. Status: {}, Body: {}", status, json);
@@ -28,7 +32,6 @@ public class ResponseUtil {
             logger.error("Failed to send JSON response. Status: {}, Body: {}. Exception: {}", status, body, e.getMessage(), e);
         }
     }
-
 
     public static void sendError(HttpServerExchange exchange, int status, String message) {
         Map<String, Object> res = new HashMap<>();
@@ -56,8 +59,7 @@ public class ResponseUtil {
         sendJson(exchange, StatusCodes.CREATED, res);
     }
 
-
-    public static void sendPaginated(HttpServerExchange exchange, String domain,  int page, int pageSize, int totalCount, List<?> data) {
+    public static void sendPaginated(HttpServerExchange exchange, String domain, int page, int pageSize, int totalCount, List<?> data) {
         Map<String, Object> res = new HashMap<>();
         res.put("domain", domain);
         res.put("current_page", page);
@@ -67,5 +69,4 @@ public class ResponseUtil {
         res.put("data", data);
         sendJson(exchange, StatusCodes.OK, res);
     }
-
 }

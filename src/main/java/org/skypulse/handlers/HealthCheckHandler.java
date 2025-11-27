@@ -41,7 +41,6 @@ public class HealthCheckHandler implements HttpHandler {
         response.put("uptime_seconds", Duration.between(START_TIME, Instant.now()).toSeconds());
         response.put("timestamp", Instant.now().toString());
 
-        // Database health
         boolean dbOK = false;
         if (DatabaseManager.isInitialized()) {
             try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
@@ -51,7 +50,6 @@ public class HealthCheckHandler implements HttpHandler {
         response.put("database", "PostgreSQL");
         response.put("database_status", dbOK ? "connected" : "unavailable");
 
-        // Background tasks status
         List<Map<String, Object>> tasks = new ArrayList<>();
         if (dbOK) {
             try (Connection conn = DatabaseManager.getDataSource().getConnection();

@@ -3,10 +3,12 @@ package org.skypulse.handlers.users;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.DatabaseUtils;
+import org.skypulse.rest.auth.RequireRoles;
 import org.skypulse.utils.ResponseUtil;
 
 import java.util.*;
 
+@RequireRoles({"ADMIN"})
 public class GetUsersHandler implements HttpHandler {
 
     private static final Map<String, String> FILTERABLE_MAP = Map.of(

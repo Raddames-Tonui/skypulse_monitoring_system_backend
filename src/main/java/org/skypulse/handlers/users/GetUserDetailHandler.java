@@ -55,7 +55,6 @@ public class GetUserDetailHandler implements HttpHandler {
             return;
         }
 
-        // Aggregate contacts and groups
         Map<String, Object> user = new HashMap<>();
         List<Map<String, Object>> contacts = new ArrayList<>();
         List<Map<String, Object>> groups = new ArrayList<>();
