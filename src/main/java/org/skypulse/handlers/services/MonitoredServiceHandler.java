@@ -5,6 +5,7 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserContext;
+import org.skypulse.rest.auth.RequireRoles;
 import org.skypulse.utils.security.JwtUtil;
 import org.skypulse.utils.AuditLogger;
 import org.skypulse.utils.HttpRequestUtil;
@@ -20,11 +21,11 @@ import java.sql.Timestamp;
 import java.util.Map;
 import java.util.Objects;
 
-
 /**
  * CREATE OR UPDATE Monitored Services
- * - Use uuid for update
- * */
+ * - Use UUID for update
+ */
+@RequireRoles({"ADMIN", "OPERATOR"})
 public class MonitoredServiceHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(MonitoredServiceHandler.class);
@@ -35,11 +36,6 @@ public class MonitoredServiceHandler implements HttpHandler {
         UserContext ctx = exchange.getAttachment(UserContext.ATTACHMENT_KEY);
         if (ctx == null) {
             ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "User context missing");
-            return;
-        }
-
-        if (!"ADMIN".equalsIgnoreCase(ctx.roleName()) && !"OPERATOR".equalsIgnoreCase(ctx.roleName())) {
-            ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "User not authorized");
             return;
         }
 
@@ -58,11 +54,11 @@ public class MonitoredServiceHandler implements HttpHandler {
             return;
         }
 
-        String region = HttpRequestUtil.getString(body,"monitored_service_region");
-        Integer checkInterval = HttpRequestUtil.getInteger(body,"check_interval");
-        Integer retryCount = HttpRequestUtil.getInteger(body,"retry_count");
-        Integer retryDelay = HttpRequestUtil.getInteger(body,"retry_delay");
-        Integer expectedStatus = HttpRequestUtil.getInteger(body,"expected_status_code");
+        String region = HttpRequestUtil.getString(body, "monitored_service_region");
+        Integer checkInterval = HttpRequestUtil.getInteger(body, "check_interval");
+        Integer retryCount = HttpRequestUtil.getInteger(body, "retry_count");
+        Integer retryDelay = HttpRequestUtil.getInteger(body, "retry_delay");
+        Integer expectedStatus = HttpRequestUtil.getInteger(body, "expected_status_code");
         Boolean sslEnabled = (Boolean) body.getOrDefault("ssl_enabled", true);
 
         long userId = JwtUtil.getUserIdFromUuid(ctx.uuid().toString());
@@ -70,8 +66,21 @@ public class MonitoredServiceHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
+            PreparedStatement checkUrl = conn.prepareStatement(
+                    "SELECT uuid FROM monitored_services WHERE monitored_service_url = ?"
+            );
+            checkUrl.setString(1, url);
+            ResultSet rsCheck = checkUrl.executeQuery();
+            if (rsCheck.next()) {
+                String existingUuid = rsCheck.getString("uuid");
+                if (uuid == null || !existingUuid.equals(uuid)) {
+                    ResponseUtil.sendError(exchange, StatusCodes.CONFLICT,
+                            "Monitored service URL already exists for another service");
+                    return;
+                }
+            }
+
             if (uuid == null) {
-                // CREATE
                 PreparedStatement ps = conn.prepareStatement("""
                     INSERT INTO monitored_services (
                         monitored_service_name,
@@ -112,7 +121,7 @@ public class MonitoredServiceHandler implements HttpHandler {
                 return;
             }
 
-            // UPDATE using UUID
+            // --- UPDATE ---
             PreparedStatement getOld = conn.prepareStatement(
                     "SELECT monitored_service_id, row_to_json(t) AS data FROM (SELECT * FROM monitored_services WHERE uuid = ?) t"
             );

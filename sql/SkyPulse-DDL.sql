@@ -394,13 +394,12 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 --/**
 --    -- Skip uptime checks for services covered by an active maintenance window.
 --    -- Suppress alerts or notifications (no downtime events).
---        @service_id = 5 - Maintenance only for that specific service.
---        @service_id IS NULL - Maintenance applies to all monitored services — system-wide pause.
 --*/
 CREATE TABLE maintenance_windows (
   maintenance_window_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uuid                   UUID UNIQUE DEFAULT gen_random_uuid(),
   monitored_service_id   BIGINT NULL,
+  window_name            VARCHAR(50),
   start_time             TIMESTAMP NOT NULL,
   end_time               TIMESTAMP NOT NULL,
   reason                 TEXT,
@@ -439,19 +438,6 @@ CREATE INDEX idx_event_outbox_service_id ON event_outbox(service_id);
 
 
 -- 4) REPORTING & HEALTH
--- Uptime records of a service
-CREATE TABLE uptime_summaries (
-  uptime_summary_id       BIGINT PRIMARY KEY,
-  service_id              BIGINT REFERENCES monitored_services(monitored_service_id) ON DELETE CASCADE,
-  date                    DATE,
-  uptime_percentage       NUMERIC(5,2),
-  average_response_time   NUMERIC(10,2),
-  incidents_count         INTEGER,
-  downtime_minutes        INTEGER,
-  date_created            TIMESTAMP DEFAULT NOW(),
-  date_modified           TIMESTAMP DEFAULT NOW()
-);
-
 -- Track execution results of each background job or cron task. eg UptimeCheckTask
 CREATE TABLE background_tasks (
     background_task_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

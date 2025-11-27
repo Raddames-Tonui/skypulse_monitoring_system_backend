@@ -3,6 +3,7 @@ package org.skypulse.handlers.services;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.DatabaseUtils;
+import org.skypulse.utils.HttpRequestUtil;
 import org.skypulse.utils.ResponseUtil;
 
 import java.util.*;
@@ -38,19 +39,15 @@ public class GetMonitoredServices implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
+        if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
+
 
         Map<String, Deque<String>> params = exchange.getQueryParameters();
 
-        // --- Parse pagination ---
         int page = DatabaseUtils.parseIntParam(params.get("page"), 1);
         int pageSize = DatabaseUtils.parseIntParam(params.get("pageSize"), 10);
         int offset = DatabaseUtils.calcOffset(page, pageSize);
 
-        // --- Parse filters from URL short names ---
         List<DatabaseUtils.FilterRule> filterRules = new ArrayList<>();
         for (Map.Entry<String, String> entry : FILTERABLE_MAP.entrySet()) {
             String shortName = entry.getKey();
@@ -63,7 +60,6 @@ public class GetMonitoredServices implements HttpHandler {
 
         DatabaseUtils.FilterResult filterResult = DatabaseUtils.buildFiltersFromRules(filterRules, COLUMN_TYPES, true);
 
-        // --- Parse sorting from URL ---
         List<DatabaseUtils.SortRule> sortRules = new ArrayList<>();
         Deque<String> sortParam = params.get("sort");
         if (sortParam != null && !sortParam.isEmpty()) {
@@ -78,7 +74,6 @@ public class GetMonitoredServices implements HttpHandler {
         }
         String orderBy = DatabaseUtils.buildOrderBy(sortRules, new HashSet<>(SORTABLE_MAP.values()));
 
-        // --- Build SQL ---
         String baseSql = "FROM monitored_services";
         String countSql = "SELECT COUNT(*) AS total " + baseSql + " WHERE 1=1 " + filterResult.sql();
         String dataSql = "SELECT * " + baseSql + " WHERE 1=1 "
@@ -86,25 +81,21 @@ public class GetMonitoredServices implements HttpHandler {
                 + orderBy
                 + " LIMIT ? OFFSET ?";
 
-        // --- Prepare parameters ---
         List<Object> dataParams = new ArrayList<>(filterResult.params());
         dataParams.add(pageSize);
         dataParams.add(offset);
 
         List<Object> countParams = new ArrayList<>(filterResult.params());
 
-        // --- Execute queries ---
-        int total = ((Number) DatabaseUtils.query(countSql, countParams).get(0).get("total")).intValue();
+        int total = ((Number) DatabaseUtils.query(countSql, countParams).getFirst().get("total")).intValue();
         List<Map<String, Object>> services = DatabaseUtils.query(dataSql, dataParams);
 
-        // --- Assign incremental IDs for client convenience ---
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> s = services.get(i);
             s.put("id", i + 1 + offset);
             s.remove("monitored_service_id");
         }
 
-        // --- Send response ---
         ResponseUtil.sendPaginated(exchange, "monitored services", page, pageSize, total, services);
     }
 }

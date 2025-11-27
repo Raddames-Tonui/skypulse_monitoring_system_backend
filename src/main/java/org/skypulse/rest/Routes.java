@@ -16,6 +16,7 @@ import org.skypulse.handlers.logs.GetUptimeLogsHandler;
 import org.skypulse.handlers.services.GetMonitoredServices;
 import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
+import org.skypulse.handlers.services.service.GetSingleServiceHandler;
 import org.skypulse.handlers.settings.GetActiveSystemSettingsHandler;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
 import org.skypulse.handlers.users.GetUserDetailHandler;
@@ -81,8 +82,9 @@ public class Routes {
         long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
-                .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessToken))
                 .get("", secure(new GetMonitoredServices(), accessToken))
+                .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessToken))
+//                .get("/service", secure(new GetSingleServiceHandler(), accessToken))
                 .get("/logs/uptime", secure(new GetUptimeLogsHandler(), accessToken))
                 .get("/logs/ssl", secure(new GetSSLLogsHandler(), accessToken))
                 .post("", secure(new MonitoredServiceHandler(), accessToken))

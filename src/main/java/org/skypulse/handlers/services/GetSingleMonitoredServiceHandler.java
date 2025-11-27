@@ -4,6 +4,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseUtils;
+import org.skypulse.utils.HttpRequestUtil;
 import org.skypulse.utils.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,10 +16,8 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
+        if (exchange.isInIoThread())       if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
+
 
         Deque<String> uuidParam = exchange.getQueryParameters().get("uuid");
         if (uuidParam == null || uuidParam.isEmpty()) {
