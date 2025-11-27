@@ -11,6 +11,7 @@ import org.skypulse.handlers.auth.UserLoginHandler;
 import org.skypulse.handlers.auth.UserSignupHandler;
 import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
 import org.skypulse.handlers.contacts.CreateContactGroupHandler;
+import org.skypulse.handlers.logs.GetSSLLogsHandler;
 import org.skypulse.handlers.logs.GetUptimeLogsHandler;
 import org.skypulse.handlers.services.GetMonitoredServices;
 import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
@@ -73,6 +74,7 @@ public class Routes {
                 .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessToken))
                 .get("", secure(new GetMonitoredServices(), accessToken))
                 .get("/logs/uptime", secure(new GetUptimeLogsHandler(), accessToken))
+                .get("/logs/ssl", secure(new GetSSLLogsHandler(), accessToken))
                 .post("/", secure(new MonitoredServiceHandler(), accessToken))
                 .put("/", secure(new MonitoredServiceHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))

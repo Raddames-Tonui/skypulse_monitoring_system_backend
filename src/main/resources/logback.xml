@@ -20,7 +20,7 @@
         </encoder>
     </appender>
 
-    <!-- ERROR FILE (ERROR ONLY) -->
+    <!-- ERROR FILE -->
     <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>tmp/logs/errors.log</file>
         <filter class="ch.qos.logback.classic.filter.LevelFilter">
@@ -51,10 +51,11 @@
         <appender-ref ref="ERROR_FILE"/>
     </root>
 
-    <!-- MODULE LOG LEVELS -->
+    <!-- MODULE OVERRIDES -->
     <logger name="io.undertow" level="WARN"/>
     <logger name="com.zaxxer.hikari" level="INFO"/>
     <logger name="org.skypulse.utils.security.KeyProvider" level="INFO"/>
-    <logger name="org.skypulse" level="DEBUG"/>
+    <!-- REMOVE THIS OR CHANGE TO INFO -->
+    <!-- <logger name="org.skypulse" level="DEBUG"/> -->
 
 </configuration>

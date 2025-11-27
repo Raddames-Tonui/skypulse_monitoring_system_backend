@@ -86,6 +86,29 @@ public class ConfigEncryptor {
         return doc; // plaintext only in memory
     }
 
+    public static boolean encryptIfNeeded(String filePath, String password) {
+        try {
+            Document doc = readXml(filePath);
+            XPath xPath = XPathFactory.newInstance().newXPath();
+            NodeList nodes = (NodeList) xPath.evaluate("//*[@mode='TEXT']", doc, XPathConstants.NODESET);
+
+            if (nodes.getLength() == 0) {
+                return false;
+            }
+
+            // encrypt all TEXT fields
+            transformValues(doc, password, true);
+
+            // write encrypted file back to disk
+            writeXml(doc, filePath);
+
+            return true;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to auto-encrypt config.xml", e);
+        }
+    }
+
+
     /** Core transformation: encrypt @mode="TEXT" or decrypt @mode="ENCRYPTED". */
     private static void transformValues(Document doc, String password, boolean encrypt) throws Exception {
         XPath xPath = XPathFactory.newInstance().newXPath();
@@ -126,7 +149,6 @@ public class ConfigEncryptor {
     private static Document readXml(String path) throws Exception {
         DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
         dbf.setNamespaceAware(false);
-        // Secure parsing
         dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         dbf.setExpandEntityReferences(false);
         DocumentBuilder db = dbf.newDocumentBuilder();

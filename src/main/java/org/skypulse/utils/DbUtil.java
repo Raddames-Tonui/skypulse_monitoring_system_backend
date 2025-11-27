@@ -7,6 +7,7 @@ import java.sql.PreparedStatement;
 
 import javax.sql.DataSource;
 import java.sql.*;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -73,5 +74,15 @@ public class DbUtil {
     @FunctionalInterface
     public interface SqlFunction<T, R> {
         R apply(T t) throws SQLException;
+    }
+
+
+
+    public static int setParams(PreparedStatement st, List<Object> params) throws SQLException {
+        int i = 1;
+        for (Object p : params) {
+            st.setObject(i++, p);
+        }
+        return i;
     }
 }

@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 public class GetMonitoredServices implements HttpHandler {
 
-    // --- URL short name → DB column mappings ---
     private static final Map<String, String> FILTERABLE_MAP = Map.of(
             "name", "monitored_service_name",
             "region", "monitored_service_region",
@@ -29,7 +28,6 @@ public class GetMonitoredServices implements HttpHandler {
             "status", "last_uptime_status"
     );
 
-    // Column types for filtering
     private static final Map<String, Class<?>> COLUMN_TYPES = Map.of(
             "monitored_service_name", String.class,
             "monitored_service_region", String.class,
