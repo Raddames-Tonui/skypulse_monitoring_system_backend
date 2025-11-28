@@ -2,6 +2,9 @@ package org.skypulse.services.tasks;
 
 import org.skypulse.services.ScheduledTask;
 import org.skypulse.config.database.JdbcUtils;
+import org.slf4j.ILoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -11,15 +14,16 @@ import java.sql.PreparedStatement;
  * For safety we only remove older than a configured retention.
  */
 public class LogRetentionCleanupTask implements ScheduledTask {
+    private static final Logger logger = LoggerFactory.getLogger(LogRetentionCleanupTask.class);
 
     private final int retentionDays;
 
     public LogRetentionCleanupTask() {
-        this.retentionDays = 90; // default 90 days — make configurable
+        this.retentionDays = 90; // default 90 days
     }
 
-    @Override public String name() { return "LogRetentionCleanupTask"; }
-    @Override public long intervalSeconds() { return 60 * 60 * 24; } // daily
+    @Override public String name() { return "[ LogRetentionCleanupTask ]"; }
+    @Override public long intervalSeconds() { return 60 * 60 * 24; }
 
     @Override
     public void execute() {
@@ -36,7 +40,7 @@ public class LogRetentionCleanupTask implements ScheduledTask {
             System.out.println("[LogCleanup] removed audit:" + a + " emailPending:" + e);
         } catch (Exception ex) {
             System.err.println("[LogCleanup] error: " + ex.getMessage());
-            ex.printStackTrace();
+
         }
     }
 }

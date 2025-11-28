@@ -84,7 +84,7 @@ public class QueryUtil {
                 if (!p.contains(":")) continue;
 
                 String[] s = p.split(":");
-                String key = s[0].trim().toLowerCase();     // normalize
+                String key = s[0].trim().toLowerCase();
                 String direction = s[1].equalsIgnoreCase("asc") ? "ASC" : "DESC";
 
                 if (sortMap.containsKey(key)) {

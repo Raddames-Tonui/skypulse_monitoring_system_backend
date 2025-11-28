@@ -100,13 +100,6 @@ public class GetUsersHandler implements HttpHandler {
         int total = ((Number) DatabaseUtils.query(countSql, countParams).getFirst().get("total")).intValue();
         List<Map<String, Object>> users = DatabaseUtils.query(dataSql, dataParams);
 
-        for (int i = 0; i < users.size(); i++) {
-            Map<String, Object> u = users.get(i);
-            u.put("id", i + 1 + offset);
-            u.remove("user_id");
-            u.remove("role_id");
-            u.remove("company_id");
-        }
 
         ResponseUtil.sendPaginated(exchange, "users", page, pageSize, total, users);
     }

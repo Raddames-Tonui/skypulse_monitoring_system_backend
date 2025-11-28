@@ -13,6 +13,7 @@ import java.sql.ResultSet;
  */
 public class EventQueueProcessorTask implements ScheduledTask {
 
+
     @Override public String name() { return "EventQueueProcessorTask"; }
     @Override public long intervalSeconds() { return 30; }
 

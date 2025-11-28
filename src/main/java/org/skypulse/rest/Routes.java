@@ -9,10 +9,7 @@ import org.skypulse.handlers.auth.GetUserProfileHandler;
 import org.skypulse.handlers.auth.LogoutHandler;
 import org.skypulse.handlers.auth.UserLoginHandler;
 import org.skypulse.handlers.auth.UserSignupHandler;
-import org.skypulse.handlers.contacts.AddMembersToGroupHandler;
-import org.skypulse.handlers.contacts.CreateContactGroupHandler;
-import org.skypulse.handlers.contacts.GetContactGroupsHandler;
-import org.skypulse.handlers.contacts.GetSingleContactGroupHandler;
+import org.skypulse.handlers.contacts.*;
 import org.skypulse.handlers.logs.GetSSLLogsHandler;
 import org.skypulse.handlers.logs.GetUptimeLogsHandler;
 import org.skypulse.handlers.services.GetMonitoredServices;
@@ -74,7 +71,8 @@ public class Routes {
         return Handlers.routing()
 
                 .post("/groups", secure(new CreateContactGroupHandler(), accessToken))
-                .post("/groups/{id}/members",secure(new AddMembersToGroupHandler(), accessToken))
+                .post("/groups/{uuid}/members",secure(new AddMembersToGroupHandler(), accessToken))
+                .post("/groups/{uuid}/services",secure(new AddServicesToGroupHandler(), accessToken))
                 .post("/groups/members/{uuid}", secure(new GetSingleMonitoredServiceHandler(), accessToken))
                 .get("/groups" , secure(new GetContactGroupsHandler(), accessToken))
                 .get("/group" , secure(new GetSingleContactGroupHandler(), accessToken))

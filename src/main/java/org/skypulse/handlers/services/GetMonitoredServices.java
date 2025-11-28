@@ -90,11 +90,6 @@ public class GetMonitoredServices implements HttpHandler {
         int total = ((Number) DatabaseUtils.query(countSql, countParams).getFirst().get("total")).intValue();
         List<Map<String, Object>> services = DatabaseUtils.query(dataSql, dataParams);
 
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> s = services.get(i);
-            s.put("id", i + 1 + offset);
-            s.remove("monitored_service_id");
-        }
 
         ResponseUtil.sendPaginated(exchange, "monitored services", page, pageSize, total, services);
     }

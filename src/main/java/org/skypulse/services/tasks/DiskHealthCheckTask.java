@@ -19,7 +19,7 @@ public class DiskHealthCheckTask implements ScheduledTask {
     }
 
     @Override public String name() { return "DiskHealthCheckTask"; }
-    @Override public long intervalSeconds() { return 60 * 10; } // every 10 minutes
+    @Override public long intervalSeconds() { return 60 * 10; }
 
     @Override
     public void execute() {

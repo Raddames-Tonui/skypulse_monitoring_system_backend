@@ -159,7 +159,7 @@ CREATE INDEX idx_login_failures_ip_time ON login_failures(ip_address, attempted_
 CREATE TABLE contact_groups (
     contact_group_id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     uuid                        UUID UNIQUE DEFAULT gen_random_uuid(),
-    contact_group_name          VARCHAR(25) UNIQUE NOT NULL, -- eg 'support team', 'backend team'
+    contact_group_name          VARCHAR(25) NOT NULL, -- eg 'support team', 'backend team'
     contact_group_description   TEXT,
     created_by                  BIGINT,
     date_created                TIMESTAMP DEFAULT NOW(),
@@ -315,7 +315,6 @@ CREATE TABLE uptime_logs (
   response_time_ms  INTEGER,
   http_status       INTEGER,
   error_message     TEXT,
-  region            VARCHAR(100),
   checked_at        TIMESTAMP DEFAULT NOW(),
   date_created      TIMESTAMP DEFAULT NOW(),
   date_modified     TIMESTAMP DEFAULT NOW(),
@@ -512,7 +511,10 @@ CREATE TABLE system_settings (
     is_active         BOOLEAN DEFAULT TRUE,    -- only one active per key
     changed_by        BIGINT,
     date_created      TIMESTAMP DEFAULT NOW(),
-    date_modified      TIMESTAMP DEFAULT NOW()
+    date_modified      TIMESTAMP DEFAULT NOW(),
+
+    CONSTRAINT fk_system_settings_changed_by
+        FOREIGN KEY (changed_by) REFERENCES users(user_id)
 );
 
 -- Ensure only one active version per key

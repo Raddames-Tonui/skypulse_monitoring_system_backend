@@ -23,8 +23,7 @@ public class GetUptimeLogsHandler implements HttpHandler {
     private static final Map<String, String> FILTER_MAP = Map.of(
             "service", "ms.monitored_service_name",
             "status", "status",
-            "region", "region",
-            "code", "http_status"
+            "region", "region"
     );
 
     @Override

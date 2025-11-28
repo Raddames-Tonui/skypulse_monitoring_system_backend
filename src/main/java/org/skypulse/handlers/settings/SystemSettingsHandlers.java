@@ -156,13 +156,12 @@ public class SystemSettingsHandlers implements HttpHandler {
             Long currentId = null;
             int currentVersion = -1;
 
-            // Find active
             try (PreparedStatement ps = conn.prepareStatement("""
-                    SELECT system_setting_id, version
-                    FROM system_settings
-                    WHERE is_active = TRUE
-                    LIMIT 1
-            """)) {
+                SELECT system_setting_id, version
+                FROM system_settings
+                WHERE is_active = TRUE
+                LIMIT 1
+        """)) {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         ResponseUtil.sendError(exchange, 400, "No active setting found");
@@ -179,27 +178,25 @@ public class SystemSettingsHandlers implements HttpHandler {
             }
 
             Long previousId = null;
-            String beforeData = null;
-            String afterData = null;
+            String previousData = null;
 
-            // Find previous version
             try (PreparedStatement ps = conn.prepareStatement("""
-                    SELECT *
-                    FROM system_settings
-                    WHERE version = ?
-                    LIMIT 1
-            """)) {
+                SELECT *
+                FROM system_settings
+                WHERE version = ?
+                LIMIT 1
+        """)) {
                 ps.setInt(1, currentVersion - 1);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         previousId = rs.getLong("system_setting_id");
-                        afterData = String.format("""
-                                {"uptime_check_interval": %d, "uptime_retry_count": %d, "uptime_retry_delay": %d,
-                                 "sse_push_interval": %d, "ssl_check_interval": %d, "ssl_alert_thresholds": "%s",
-                                 "ssl_retry_count": %d, "ssl_retry_delay": %d,
-                                 "notification_check_interval": %d, "notification_retry_count": %d,
-                                 "notification_cooldown_minutes": %d, "version": %d}
-                                """,
+                        previousData = String.format("""
+                            {"uptime_check_interval": %d, "uptime_retry_count": %d, "uptime_retry_delay": %d,
+                             "sse_push_interval": %d, "ssl_check_interval": %d, "ssl_alert_thresholds": "%s",
+                             "ssl_retry_count": %d, "ssl_retry_delay": %d,
+                             "notification_check_interval": %d, "notification_retry_count": %d,
+                             "notification_cooldown_minutes": %d, "version": %d}
+                            """,
                                 rs.getInt("uptime_check_interval"),
                                 rs.getInt("uptime_retry_count"),
                                 rs.getInt("uptime_retry_delay"),
@@ -222,29 +219,27 @@ public class SystemSettingsHandlers implements HttpHandler {
                 return;
             }
 
-            // Deactivate current
             try (PreparedStatement ps = conn.prepareStatement("""
-                    UPDATE system_settings
-                    SET is_active = FALSE
-                    WHERE system_setting_id = ?
-            """)) {
+                UPDATE system_settings
+                SET is_active = FALSE
+                WHERE system_setting_id = ?
+        """)) {
                 ps.setLong(1, currentId);
                 ps.executeUpdate();
             }
 
-            // Activate previous
             try (PreparedStatement ps = conn.prepareStatement("""
-                    UPDATE system_settings
-                    SET is_active = TRUE, date_modified = NOW()
-                    WHERE system_setting_id = ?
-            """)) {
+                UPDATE system_settings
+                SET is_active = TRUE, date_modified = NOW()
+                WHERE system_setting_id = ?
+        """)) {
                 ps.setLong(1, previousId);
                 ps.executeUpdate();
             }
 
             conn.commit();
 
-            AuditLogger.log(exchange, "system_settings", previousId, "ROLLBACK", beforeData, afterData);
+            AuditLogger.log(exchange, "system_settings", previousId, "ROLLBACK", previousData, null);
 
             ResponseUtil.sendSuccess(exchange, "Rolled back to previous version", Map.of(
                     "new_active_id", previousId,

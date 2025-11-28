@@ -6,7 +6,7 @@
 
 -- COMPANY
 INSERT INTO company (company_name, company_description)
-VALUES ('SkyWatch Inc.', 'Default company for SkyPulse monitoring system')
+VALUES ('SkyPulse Inc.', 'Default company for SkyPulse monitoring system')
 ON CONFLICT (company_name) DO NOTHING;
 
 -- ROLES
@@ -145,5 +145,6 @@ ON CONFLICT DO NOTHING;
 INSERT INTO notification_templates (event_type, subject_template, body_template, body_template_key, storage_mode)
 VALUES
 ('SERVICE_DOWN','Service Down Alert - {{service_name}}','<p>Service {{service_name}} is down.</p>','service_down.html','hybrid'),
+('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','service_recovered.html','hybrid')
 ('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','service_recovered.html','hybrid')
 ON CONFLICT DO NOTHING;
