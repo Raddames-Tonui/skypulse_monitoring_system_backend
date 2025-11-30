@@ -17,7 +17,7 @@ public class TemplateLoader {
 
     /**
      * Loads the HTML template content from the templates directory in the resources folder.
-     * @param fileName The name of the template file (e.g., "welcome-email.html").
+     * @param fileName The name of the template file (e.g., "welcome_email.html").
      * @return The content of the HTML file as a string.
      * @throws IOException if the file is not found or can't be read.
      */

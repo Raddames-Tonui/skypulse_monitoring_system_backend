@@ -40,13 +40,12 @@ public class CreateNewUser implements HttpHandler {
             String lastName = (String) input.getOrDefault("last_name", "");
             String email = (String) input.get("user_email");
             String roleName = (String) input.get("role_name");
+            Integer companyId = (Integer) input.get("company_id");
 
             if (!PasswordUtil.isValidEmail(email)) {
                 ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid email address");
                 return;
             }
-
-            Integer companyId = (Integer) input.get("company_id");
 
             try (Connection conn = JdbcUtils.getConnection()) {
                 conn.setAutoCommit(false);
@@ -63,16 +62,14 @@ public class CreateNewUser implements HttpHandler {
                 }
 
                 UserInfo userInfo = insertUser(conn, firstName, lastName, email, roleId, companyId);
-
                 insertPrimaryContact(conn, userInfo.userId(), email);
 
                 String token = createOneTimeToken(conn, userInfo.userId());
+                String oneTimeLink = KeyProvider.getFrontendBaseUrl() + "/auth/set-password?token=" + token;
 
-                String frontendBaseUrl = KeyProvider.getFrontendBaseUrl();
-                String oneTimeLink = frontendBaseUrl + "/auth/set-password?token=" + token;
-                insertEvent(conn, userInfo.userId(), email, oneTimeLink,firstName , lastName);
+                insertEvent(conn, userInfo.userId(), firstName, lastName, email, oneTimeLink);
 
-                    AuditLogger.log(exchange, "users", userInfo.userId(), "CREATE", null, Map.of(
+                AuditLogger.log(exchange, "users", userInfo.userId(), "CREATE", null, Map.of(
                         "first_name", firstName,
                         "last_name", lastName,
                         "user_email", email,
@@ -119,11 +116,7 @@ public class CreateNewUser implements HttpHandler {
         try (PreparedStatement ps = conn.prepareStatement(query)) {
             ps.setString(1, roleName != null ? roleName.toUpperCase() : "VIEWER");
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    int roleId = rs.getInt("role_id");
-                    logger.info("Role '{}' fetched with ID {}", roleName, roleId);
-                    return roleId;
-                }
+                if (rs.next()) return rs.getInt("role_id");
             }
         }
         return -1;
@@ -145,19 +138,13 @@ public class CreateNewUser implements HttpHandler {
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) throw new RuntimeException("Failed to insert user");
-                long userId = rs.getLong("user_id");
-                String uuid = rs.getString("uuid");
-                logger.info("Created user {} with ID {}", email, userId);
-                return new UserInfo(userId, uuid);
+                return new UserInfo(rs.getLong("user_id"), rs.getString("uuid"));
             }
         }
     }
 
     private void insertPrimaryContact(Connection conn, long userId, String email) throws Exception {
-        String sql = """
-                INSERT INTO user_contacts (user_id, type, value, verified, is_primary)
-                VALUES (?, 'email', ?, false, true)
-                """;
+        String sql = "INSERT INTO user_contacts (user_id, type, value, verified, is_primary) VALUES (?, 'email', ?, false, true)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, userId);
             ps.setString(2, email);
@@ -168,11 +155,7 @@ public class CreateNewUser implements HttpHandler {
     private String createOneTimeToken(Connection conn, long userId) throws Exception {
         String token = PasswordUtil.generateToken();
         Instant expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
-
-        String sql = """
-                INSERT INTO user_password_tokens (user_id, token, expires_at)
-                VALUES (?, ?, ?)
-                """;
+        String sql = "INSERT INTO user_password_tokens (user_id, token, expires_at) VALUES (?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, userId);
             ps.setString(2, token);
@@ -182,21 +165,18 @@ public class CreateNewUser implements HttpHandler {
         return token;
     }
 
-    private void insertEvent(Connection conn, long userId, String email, String oneTimeLink ,  String firstName, String lastName  ) throws Exception {
+    private void insertEvent(Connection conn, long userId, String firstName, String lastName, String email, String oneTimeLink) throws Exception {
         Map<String, Object> eventPayload = Map.of(
                 "userId", userId,
-                "email", email,
                 "firstName", firstName,
                 "lastName", lastName,
+                "email", email,
                 "passwordResetLink", oneTimeLink,
-                    "message", "UWelcome! Your account has been created. Click the button below to set your password."
+                "message", "Welcome! Your account has been created. Click the button below to set your password."
         );
         String payloadJson = JsonUtil.mapper().writeValueAsString(eventPayload);
 
-        String sql = """
-                INSERT INTO event_outbox (event_type, payload, status)
-                VALUES ('USER_CREATED', ?::jsonb, 'PENDING')
-                """;
+        String sql = "INSERT INTO event_outbox (event_type, payload, status) VALUES ('USER_CREATED', ?::jsonb, 'PENDING')";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, payloadJson);
             ps.executeUpdate();

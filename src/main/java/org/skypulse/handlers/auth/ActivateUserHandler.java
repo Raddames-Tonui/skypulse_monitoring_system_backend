@@ -127,21 +127,6 @@ public class ActivateUserHandler implements HttpHandler {
                 }
             }
 
-            if (!emailExists) {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO user_contacts (user_id, type, value, is_primary, verified, date_created) " +
-                                "VALUES (?, 'EMAIL', ?, TRUE, TRUE, NOW())"
-                )) {
-                    ps.setLong(1, userId);
-                    ps.setString(2, email);
-                    ps.executeUpdate();
-                } catch (Exception e) {
-                    logger.error("Failed to insert primary email for user {}", userId, e);
-                    ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR,
-                            "Could not add primary email. Please contact support.");
-                    return;
-                }
-            }
 
             try {
                 Instant now = Instant.now();
