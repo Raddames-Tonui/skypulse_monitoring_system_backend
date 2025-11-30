@@ -25,7 +25,6 @@ public final class JwtUtil {
 
     /**
      *  Access token generated using the user's UUID as subject and a provided jti (UUID).
-     *
      *  userUuid user UUID (as string)
      *  ttlSeconds token lifetime in seconds
      *  jti the JWT ID to set (should match auth_sessions.jwt_id)

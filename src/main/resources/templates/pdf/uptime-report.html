@@ -1,0 +1,62 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Uptime Report</title>
+    <style type="text/css">
+        @page {
+          size: A4 landscape;
+          margin: 0.5in;
+          @bottom-right {
+            content: "Page " counter(page) " of " counter(pages);
+            font-size: 10pt;
+          }
+        }
+        body { font-family: Arial, sans-serif; font-size: 10pt; margin: 0; padding: 0; }
+        h1 { text-align: center; color: #32CD32; }
+        .report-info { width: 100%; margin-bottom: 20px; }
+        .filter { font-size: 10pt; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #D3D3D3; padding: 6px; text-align: left; }
+        th { background-color: #32CD32; color: white; }
+        td.center { text-align: center; }
+        .up { color: #32CD32; font-weight: bold; }
+        .down { color: #D22F2F; font-weight: bold; }
+        .chart { margin-top: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<h1>Uptime Report</h1>
+
+<!-- Filter info -->
+<div class="report-info">
+    <div class="filter">Service: {{SERVICE_NAME}} | Period: {{FILTER_PERIOD}}</div>
+    <div>Generated on: {{DATE_ISSUED}}</div>
+</div>
+
+<!-- Uptime summary table -->
+<table>
+    <thead>
+    <tr>
+        <th>Date / Time</th>
+        <th>Status</th>
+        <th>Response Time (ms)</th>
+        <th>HTTP Status</th>
+        <th>Error Message</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{UPTIME_ROWS}}
+    </tbody>
+</table>
+
+<!-- Chart -->
+<div class="chart">
+    <div><strong>Uptime % Over Time</strong></div>
+    {{UPTIME_SVG_CHART}}
+</div>
+
+</body>
+</html>

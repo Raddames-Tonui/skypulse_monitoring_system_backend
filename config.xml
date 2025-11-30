@@ -47,6 +47,11 @@
 
     <!-- Notification Channels    -->
     <notification enabled="true">
+
+        <threads>
+            <workerThreads mode="TEXT">10</workerThreads>
+        </threads>
+
         <email>
             <smtpHost>smtp.gmail.com</smtpHost>
             <smtpPort mode="TEXT">587</smtpPort>

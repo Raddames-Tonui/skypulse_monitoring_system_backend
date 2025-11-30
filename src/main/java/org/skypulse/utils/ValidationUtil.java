@@ -31,7 +31,6 @@ public final class ValidationUtil {
         return true;
     }
 
-    // Example: email format validation
     public static boolean validEmail(HttpServerExchange exchange, String email) {
         if (email == null || !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
             ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid email");

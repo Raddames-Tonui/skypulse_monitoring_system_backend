@@ -38,7 +38,6 @@ public class QueryUtil {
         StringBuilder where = new StringBuilder(" WHERE 1=1 ");
         List<Object> params = new ArrayList<>();
 
-        // --- CASE-INSENSITIVE FILTERING ---
         for (var entry : filterMap.entrySet()) {
             String urlKey = entry.getKey();
             String dbColumn = entry.getValue();

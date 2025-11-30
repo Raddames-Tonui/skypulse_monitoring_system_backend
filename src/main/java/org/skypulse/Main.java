@@ -84,7 +84,6 @@ public class Main {
             registerApplicationTasks(dbAvailable, cfg);
             appScheduler.start();
 
-            // Background reconnection monitor if DB was down
             if (!dbAvailable) {
                 logger.info("[------------ Starting background DB reconnection monitor ------------]");
                 DBTaskScheduler.scheduleReconnect(() -> {

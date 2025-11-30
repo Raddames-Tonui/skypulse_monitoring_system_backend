@@ -31,10 +31,7 @@ public class SslExpiryMonitorTask implements ScheduledTask {
     private final int sslRetryCount;
     private final int sslRetryDelaySeconds;
 
-    private final SystemSettings.SystemDefaults defaults;
-
     public SslExpiryMonitorTask(SystemSettings.SystemDefaults defaults) {
-        this.defaults = defaults;
 
         int interval = defaults.sslCheckInterval();
         if (interval <= 0) interval = 60 * 60 * 6; // fallback 6 hours

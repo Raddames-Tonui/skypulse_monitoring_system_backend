@@ -32,7 +32,7 @@ public class GetUserDetailHandler implements HttpHandler {
         }
 
         String sql = """
-            SELECT 
+            SELECT
                 u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, u.is_active,
                 u.date_created, u.date_modified, u.is_deleted, u.deleted_at,
                 r.role_name AS role,

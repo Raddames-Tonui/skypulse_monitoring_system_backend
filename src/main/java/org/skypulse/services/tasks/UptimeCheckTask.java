@@ -33,7 +33,6 @@ public class UptimeCheckTask implements ScheduledTask {
             .build();
 
     private final SystemSettings.ServiceConfig service;
-    private final SystemSettings.SystemDefaults defaults;
 
     private final int intervalSeconds;
     private final int retryCount;
@@ -43,7 +42,6 @@ public class UptimeCheckTask implements ScheduledTask {
     public UptimeCheckTask(SystemSettings.ServiceConfig service,
                            SystemSettings.SystemDefaults defaults) {
         this.service = service;
-        this.defaults = defaults;
         this.intervalSeconds = service.checkInterval() > 0 ? service.checkInterval() * 60 : defaults.uptimeCheckInterval() * 60;
         this.retryCount = service.retryCount() > 0 ? service.retryCount() : defaults.uptimeRetryCount();
         this.retryDelay = service.retryDelay() > 0 ? service.retryDelay() : defaults.uptimeRetryDelay();

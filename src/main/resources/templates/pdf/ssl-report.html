@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSL Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .valid { color: green; font-weight: bold; }
+        .expiring { color: orange; font-weight: bold; }
+        .expired { color: red; font-weight: bold; }
+        .center { text-align: center; }
+        .chart { margin: 30px auto; display: block; }
+        .bar { fill: darkorange; }
+        .axis { stroke: #000; stroke-width: 1; }
+        .label { font-size: 10px; fill: #000; text-anchor: middle; }
+    </style>
+</head>
+<body>
+<h1>SkyPulse Monitoring</h1>
+<h2>SSL Certificates Report</h2>
+
+<p><strong>Report Period:</strong> {{REPORT_PERIOD}}</p>
+<p><strong>Generated On:</strong> {{GENERATED_ON}}</p>
+
+<!-- SSL Expiry Chart -->
+<h2>SSL Certificates Expiring Soon</h2>
+<svg class="chart" width="600" height="300" xmlns="http://www.w3.org/2000/svg">
+    {{SSL_EXPIRY_CHART_SVG}}
+</svg>
+
+<!-- SSL Logs Table -->
+<h2>SSL Logs</h2>
+<table>
+    <thead>
+    <tr>
+        <th>Service</th>
+        <th>Domain</th>
+        <th>Issuer</th>
+        <th>Expiry Date</th>
+        <th>Days Remaining</th>
+        <th>Chain Valid</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{SSL_ROWS}}
+    </tbody>
+</table>
+
+<p class="center">SkyPulse Monitoring System</p>
+</body>
+</html>

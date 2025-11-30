@@ -6,10 +6,13 @@ import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
 import org.skypulse.handlers.TaskController;
 import org.skypulse.handlers.auth.*;
+import org.skypulse.handlers.company.ListCompanies;
 import org.skypulse.handlers.contacts.*;
 import org.skypulse.handlers.logs.GetAuditLogsHandler;
 import org.skypulse.handlers.logs.GetSSLLogsHandler;
 import org.skypulse.handlers.logs.GetUptimeLogsHandler;
+import org.skypulse.handlers.reports.GenerateUptimePdfReports;
+import org.skypulse.handlers.reports.GenerateSslPdfReports;
 import org.skypulse.handlers.services.GetMonitoredServices;
 import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
@@ -106,6 +109,16 @@ public class Routes {
                 .post("/", secure(new SystemSettingsHandlers(), accessToken))
                 .post("/rollback", secure(new SystemSettingsHandlers(), accessToken))
                 .get("/", secure(new GetActiveSystemSettingsHandler(), accessToken))
+                .get("/companies", secure(new ListCompanies(), accessToken))
+                .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
+                .setFallbackHandler(new Dispatcher(new FallBack()));
+    }
+    public static RoutingHandler generateReports(XmlConfiguration cfg) {
+        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+
+        return Handlers.routing()
+                .get("/pdf/uptime", secure(new GenerateUptimePdfReports(), accessToken))
+                .get("/pdf/ssl", secure(new GenerateSslPdfReports(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }

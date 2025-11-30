@@ -93,12 +93,10 @@ public class KeyProvider {
         return value.trim();
     }
 
-    /** Encryption master key */
     public static String getEncryptionKey() {
         return get(ENV_MASTER_KEY);
     }
 
-    /** Frontend base URL */
     public static String getFrontendBaseUrl() {
         if (!initialized) init();
 
@@ -115,7 +113,6 @@ public class KeyProvider {
         return value.trim();
     }
 
-    /** Load secret from file */
     public static String getKeyFromFile(String filePath) {
         if (!initialized) init();
 
@@ -134,7 +131,6 @@ public class KeyProvider {
     public static boolean isProd() { return !"DEVELOPMENT".equalsIgnoreCase(activeEnv); }
     public static String getEnvironment() { if (!initialized) init(); return activeEnv; }
 
-    /** Load logback safely */
     private static void loadLogback(String fileName) {
         try {
             LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();
