@@ -96,6 +96,7 @@ public class UserLoginHandler implements HttpHandler {
                 return;
             }
 
+
             String roleName = "";
             if (roleId != null) {
                 try (PreparedStatement ps = conn.prepareStatement("SELECT role_name FROM roles WHERE role_id = ?")) {

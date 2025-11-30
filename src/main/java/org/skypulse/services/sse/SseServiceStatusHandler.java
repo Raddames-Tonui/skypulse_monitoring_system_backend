@@ -26,7 +26,8 @@ public class SseServiceStatusHandler extends SseHandler {
     protected Map<String, Object> generateData() {
         Map<String, Object> response = new LinkedHashMap<>();
         List<Map<String, Object>> services = new ArrayList<>();
-        int totalServices = 0, upCount = 0, downCount = 0, sslWarnings = 0;
+        int totalServices = 0, upCount = 0, downCount = 0;
+        int sslWarnings = 0, sslCritical = 0, sslSevere = 0;
 
         String sql = """
             SELECT ms.uuid,
@@ -59,20 +60,34 @@ public class SseServiceStatusHandler extends SseHandler {
 
             while (rs.next()) {
                 totalServices++;
+
                 String status = rs.getString("last_uptime_status");
                 if ("UP".equalsIgnoreCase(status)) upCount++;
                 if ("DOWN".equalsIgnoreCase(status)) downCount++;
 
                 Integer daysRemaining = rs.getObject("days_remaining", Integer.class);
-                boolean sslWarning = daysRemaining != null && daysRemaining <= 30;
-                if (sslWarning) sslWarnings++;
+                String sslStatus = "OK";
+
+                if (daysRemaining != null) {
+                    if (daysRemaining <= 7) {
+                        sslStatus = "SEVERE";
+                        sslSevere++;
+                    } else if (daysRemaining <= 14) {
+                        sslStatus = "CRITICAL";
+                        sslCritical++;
+                    } else if (daysRemaining <= 30) {
+                        sslStatus = "WARNING";
+                        sslWarnings++;
+                    }
+                }
 
                 Map<String, Object> service = new HashMap<>();
                 service.put("uuid", rs.getObject("uuid"));
                 service.put("name", rs.getString("monitored_service_name"));
                 service.put("status", status);
                 service.put("response_time_ms", rs.getObject("response_time_ms"));
-                service.put("ssl_warning", sslWarning);
+                service.put("ssl_days_remaining", daysRemaining);
+                service.put("ssl_status", sslStatus);
 
                 services.add(service);
             }
@@ -94,6 +109,8 @@ public class SseServiceStatusHandler extends SseHandler {
         response.put("up_count", upCount);
         response.put("down_count", downCount);
         response.put("ssl_warnings", sslWarnings);
+        response.put("ssl_critical", sslCritical);
+        response.put("ssl_severe", sslSevere);
         response.put("services", services);
         response.put("sse_push_interval_seconds", systemDefaults != null
                 ? systemDefaults.ssePushInterval()

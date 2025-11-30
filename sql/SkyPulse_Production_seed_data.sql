@@ -1,3 +1,8 @@
+-- COMPANY
+INSERT INTO company (company_name, company_description)
+VALUES ('SkyPulse Inc.', 'Default company for SkyPulse monitoring system')
+ON CONFLICT (company_name) DO NOTHING;
+
 -- ROLES
 INSERT INTO roles (role_name, role_description)
 VALUES

@@ -23,21 +23,15 @@ public class AuditLogger {
     private AuditLogger() {}
 
     public static void log(HttpServerExchange exchange, String entity, Long entityId, String action,
-                           String beforeData, String afterData) {
+                           Object beforeDataObj, Object afterDataObj) {
         if (exchange == null) {
             logger.warn("Audit log skipped: HttpServerExchange is null");
             return;
         }
 
         UserContext userContext = exchange.getAttachment(UserContext.ATTACHMENT_KEY);
-        if (userContext == null) {
-            logger.warn("Audit log skipped: UserContext not found in exchange");
-            return;
-        }
-
-        Long userId = userContext.userId();
-        if (userId == null) {
-            logger.warn("Audit log skipped: userId is null in UserContext");
+        if (userContext == null || userContext.userId() == null) {
+            logger.warn("Audit log skipped: missing userId in UserContext");
             return;
         }
 
@@ -52,7 +46,7 @@ public class AuditLogger {
                     """;
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, userId);
+                ps.setLong(1, userContext.userId());
                 ps.setString(2, entity);
                 if (entityId != null) {
                     ps.setLong(3, entityId);
@@ -60,8 +54,12 @@ public class AuditLogger {
                     ps.setNull(3, java.sql.Types.BIGINT);
                 }
                 ps.setString(4, action);
-                ps.setString(5, beforeData);
-                ps.setString(6, afterData);
+                ps.setString(5, beforeDataObj != null
+                        ? JsonUtil.mapper().writeValueAsString(beforeDataObj)
+                        : "{}");
+                ps.setString(6, afterDataObj != null
+                        ? JsonUtil.mapper().writeValueAsString(afterDataObj)
+                        : "{}");
                 ps.setString(7, ipAddress);
 
                 ps.executeUpdate();

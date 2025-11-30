@@ -5,20 +5,18 @@ import io.undertow.server.RoutingHandler;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
 import org.skypulse.handlers.TaskController;
-import org.skypulse.handlers.auth.GetUserProfileHandler;
-import org.skypulse.handlers.auth.LogoutHandler;
-import org.skypulse.handlers.auth.UserLoginHandler;
-import org.skypulse.handlers.auth.UserSignupHandler;
+import org.skypulse.handlers.auth.*;
 import org.skypulse.handlers.contacts.*;
+import org.skypulse.handlers.logs.GetAuditLogsHandler;
 import org.skypulse.handlers.logs.GetSSLLogsHandler;
 import org.skypulse.handlers.logs.GetUptimeLogsHandler;
 import org.skypulse.handlers.services.GetMonitoredServices;
 import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
 import org.skypulse.handlers.services.UpdateMonitoredServiceHandler;
-import org.skypulse.handlers.services.service.GetSingleServiceHandler;
 import org.skypulse.handlers.settings.GetActiveSystemSettingsHandler;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
+import org.skypulse.handlers.users.CreateNewUser;
 import org.skypulse.handlers.users.GetUserDetailHandler;
 import org.skypulse.handlers.users.GetUsersHandler;
 import org.skypulse.rest.base.Dispatcher;
@@ -42,6 +40,7 @@ public class Routes {
                 .post("/register", open(new UserSignupHandler()))
                 .get("/profile", secure(new GetUserProfileHandler(), accessToken))
                 .post("/logout", secure(new LogoutHandler(), accessToken))
+                .post("/activate", open(new ActivateUserHandler()))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
@@ -60,6 +59,7 @@ public class Routes {
         return Handlers.routing()
                 .get("", secure(new GetUsersHandler(), accessToken))
                 .get("/user", secure(new GetUserDetailHandler(), accessToken))
+                .post("/user/create", secure(new CreateNewUser(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
@@ -89,6 +89,7 @@ public class Routes {
                 .get("/service", secure(new GetSingleMonitoredServiceHandler(), accessToken))
                 .get("/logs/uptime", secure(new GetUptimeLogsHandler(), accessToken))
                 .get("/logs/ssl", secure(new GetSSLLogsHandler(), accessToken))
+                .get("/logs/audit", secure(new GetAuditLogsHandler(), accessToken))
                 .post("/create", secure(new MonitoredServiceHandler(), accessToken))
                 .put("/update", secure(new UpdateMonitoredServiceHandler(), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))

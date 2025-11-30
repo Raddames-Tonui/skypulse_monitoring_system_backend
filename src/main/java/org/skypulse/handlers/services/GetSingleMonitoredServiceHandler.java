@@ -37,41 +37,47 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
         }
 
         String sql = """
-            SELECT
-                ms.monitored_service_id, ms.uuid, ms.monitored_service_name, ms.monitored_service_url,
-                ms.monitored_service_region, ms.check_interval, ms.retry_count, ms.retry_delay,
-                ms.expected_status_code, ms.ssl_enabled, ms.last_uptime_status, ms.consecutive_failures,
-                ms.last_checked, ms.created_by, ms.date_created, ms.date_modified, ms.is_active,
-
-                u.user_id AS creator_id, u.first_name AS creator_first_name, u.last_name AS creator_last_name,
-                u.user_email AS creator_email,
-
-                cgm.contact_group_id, cg.uuid AS group_uuid, cg.contact_group_name, cg.contact_group_description,
-
-                ul.uptime_log_id, ul.status AS uptime_status, ul.response_time_ms, ul.http_status, ul.error_message,
-                ul.region AS uptime_region, ul.checked_at AS uptime_checked_at,
-
-                ssl.ssl_log_id, ssl.domain AS ssl_domain, ssl.issuer AS ssl_issuer, ssl.serial_number AS ssl_serial_number,
-                ssl.signature_algorithm AS ssl_signature_algo, ssl.public_key_algo AS ssl_pubkey_algo,
-                ssl.public_key_length AS ssl_pubkey_length, ssl.san_list AS ssl_san_list, ssl.chain_valid AS ssl_chain_valid,
-                ssl.subject AS ssl_subject, ssl.fingerprint AS ssl_fingerprint, ssl.issued_date AS ssl_issued_date,
-                ssl.expiry_date AS ssl_expiry_date, ssl.days_remaining AS ssl_days_remaining, ssl.last_checked AS ssl_last_checked,
-
-                inc.incident_id, inc.uuid AS incident_uuid, inc.started_at AS incident_started_at, inc.resolved_at AS incident_resolved_at,
-                inc.duration_minutes, inc.cause AS incident_cause, inc.status AS incident_status,
-
-                mw.maintenance_window_id, mw.uuid AS maintenance_uuid, mw.start_time AS maintenance_start,
-                mw.end_time AS maintenance_end, mw.reason AS maintenance_reason, mw.created_by AS maintenance_created_by
-            FROM monitored_services ms
-            LEFT JOIN users u ON ms.created_by = u.user_id
-            LEFT JOIN monitored_services_contact_groups cgm ON ms.monitored_service_id = cgm.monitored_service_id
-            LEFT JOIN contact_groups cg ON cgm.contact_group_id = cg.contact_group_id
-            LEFT JOIN uptime_logs ul ON ms.monitored_service_id = ul.monitored_service_id
-            LEFT JOIN ssl_logs ssl ON ms.monitored_service_id = ssl.monitored_service_id
-            LEFT JOIN incidents inc ON ms.monitored_service_id = inc.monitored_service_id
-            LEFT JOIN maintenance_windows mw ON ms.monitored_service_id = mw.monitored_service_id
-            WHERE ms.uuid = ?
-        """;
+                    SELECT
+                        ms.monitored_service_id, ms.uuid, ms.monitored_service_name, ms.monitored_service_url,
+                        ms.monitored_service_region, ms.check_interval, ms.retry_count, ms.retry_delay,
+                        ms.expected_status_code, ms.ssl_enabled, ms.last_uptime_status, ms.consecutive_failures,
+                        ms.last_checked, ms.created_by, ms.date_created, ms.date_modified, ms.is_active,
+                
+                        u.user_id AS creator_id, u.first_name AS creator_first_name, u.last_name AS creator_last_name,
+                        u.user_email AS creator_email,
+                
+                        cgm.contact_group_id, cg.uuid AS group_uuid, cg.contact_group_name, cg.contact_group_description,
+                
+                        ul.uptime_log_id, ul.status AS uptime_status, ul.response_time_ms, ul.http_status, ul.error_message,
+                        ul.region AS uptime_region, ul.checked_at AS uptime_checked_at,
+                
+                        ssl.ssl_log_id, ssl.domain AS ssl_domain, ssl.issuer AS ssl_issuer, ssl.serial_number AS ssl_serial_number,
+                        ssl.signature_algorithm AS ssl_signature_algo, ssl.public_key_algo AS ssl_pubkey_algo,
+                        ssl.public_key_length AS ssl_pubkey_length, ssl.san_list AS ssl_san_list, ssl.chain_valid AS ssl_chain_valid,
+                        ssl.subject AS ssl_subject, ssl.fingerprint AS ssl_fingerprint, ssl.issued_date AS ssl_issued_date,
+                        ssl.expiry_date AS ssl_expiry_date, ssl.days_remaining AS ssl_days_remaining, ssl.last_checked AS ssl_last_checked,
+                
+                        inc.incident_id, inc.uuid AS incident_uuid, inc.started_at AS incident_started_at, inc.resolved_at AS incident_resolved_at,
+                        inc.duration_minutes, inc.cause AS incident_cause, inc.status AS incident_status,
+                
+                        mw.maintenance_window_id, mw.uuid AS maintenance_uuid, mw.start_time AS maintenance_start,
+                        mw.end_time AS maintenance_end, mw.reason AS maintenance_reason, mw.created_by AS maintenance_created_by
+                    FROM monitored_services ms
+                    LEFT JOIN users u ON ms.created_by = u.user_id
+                    LEFT JOIN monitored_services_contact_groups cgm ON ms.monitored_service_id = cgm.monitored_service_id
+                    LEFT JOIN contact_groups cg ON cgm.contact_group_id = cg.contact_group_id
+                    LEFT JOIN LATERAL (
+                        SELECT *
+                        FROM uptime_logs ul
+                        WHERE ul.monitored_service_id = ms.monitored_service_id
+                        ORDER BY ul.checked_at DESC
+                        LIMIT 20
+                    ) ul ON true
+                    LEFT JOIN ssl_logs ssl ON ms.monitored_service_id = ssl.monitored_service_id
+                    LEFT JOIN incidents inc ON ms.monitored_service_id = inc.monitored_service_id
+                    LEFT JOIN maintenance_windows mw ON ms.monitored_service_id = mw.monitored_service_id
+                    WHERE ms.uuid = ?
+                """;
 
         List<Map<String, Object>> rows = DatabaseUtils.query(sql, List.of(uuidValue));
         if (rows.isEmpty()) {

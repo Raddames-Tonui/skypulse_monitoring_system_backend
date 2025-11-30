@@ -12,7 +12,7 @@ import java.util.*;
 
 import static org.skypulse.utils.DbUtil.setParams;
 
-@RequireRoles({"ADMIN", "OPERATOR"})
+@RequireRoles({"ADMIN", "OPERATOR", "VIEWER"})
 public class GetSSLLogsHandler implements HttpHandler {
 
     private static final Map<String, String> SORT_MAP = Map.of(

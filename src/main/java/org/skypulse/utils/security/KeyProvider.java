@@ -64,7 +64,6 @@ public class KeyProvider {
 
             initialized = true;
 
-            // Now logging is safe
             logger.info("KeyProvider initialized — Environment: {}", activeEnv);
 
         } catch (Exception e) {

@@ -44,7 +44,14 @@ public class ApplicationTasks {
                     MultiChannelSender sender = new MultiChannelSender();
                     sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
                     // sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
-                    appScheduler.register(new NotificationProcessorTask(sender, defaultSettings));
+
+                    int workerThreads = 10;
+                    NotificationProcessorTask notificationTask = new NotificationProcessorTask(
+                            sender,
+                            defaultSettings,
+                            workerThreads
+                    );
+                    appScheduler.register(notificationTask);
 
                     // 3. Register SSL MONITOR TASK
                     appScheduler.register(new SslExpiryMonitorTask(defaultSettings));

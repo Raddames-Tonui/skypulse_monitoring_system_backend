@@ -153,6 +153,16 @@ CREATE INDEX idx_login_failures_user_email ON login_failures(user_email);
 CREATE INDEX idx_login_failures_ip_time ON login_failures(ip_address, attempted_at DESC);
 
 
+CREATE TABLE user_password_tokens (
+    token_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    token VARCHAR(256) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    date_created TIMESTAMP DEFAULT NOW()
+);
+
+
 
 -- 2) CONTACT GROUPS & NOTIFICATIONS
 
@@ -211,7 +221,7 @@ CREATE TABLE notification_channels (
 CREATE TABLE notification_templates (
     notification_template_id    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     uuid                        UUID UNIQUE DEFAULT gen_random_uuid(),
-    event_type                  VARCHAR(50), -- service_down, ssl_expiry...
+    event_type                  VARCHAR(50), -- SERVICE_DOWN, SSL_EXPIRING, USER_CREATED, SERVICE_RECOVERED...
     storage_mode                VARCHAR(20) DEFAULT 'hybrid'
                                     CHECK (storage_mode IN ('database', 'filesystem', 'hybrid')),
     subject_template            TEXT NOT NULL,
@@ -237,18 +247,18 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 -- Log of each send attempt
 CREATE TABLE notification_history (
     notification_history_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    service_id                  BIGINT,
-    contact_group_id            BIGINT,
-    contact_group_member_id     BIGINT,
-    notification_channel_id     BIGINT,
-    recipient                   VARCHAR(255),
+    service_id                  BIGINT NULL,
+    contact_group_id            BIGINT NULL,
+    contact_group_member_id     BIGINT NULL,
+    notification_channel_id     BIGINT NULL,
+    recipient                   VARCHAR(255) NOT NULL,
     subject                     TEXT,
     message                     TEXT,
-    status                      VARCHAR(20) DEFAULT 'sent', -- sent  failed  pending
+    status                      VARCHAR(20) DEFAULT 'SENT', -- sent | failed | pending
     sent_at                     TIMESTAMP DEFAULT NOW(),
     error_message               TEXT,
     include_pdf                 BOOLEAN DEFAULT FALSE,
-    pdf_template_id             BIGINT,
+    pdf_template_id             BIGINT NULL,
     pdf_file_path               TEXT,
     pdf_file_hash               VARCHAR(64),
     pdf_generated_at            TIMESTAMP,
@@ -270,12 +280,13 @@ CREATE TABLE notification_history (
 
 
 
+
 -- 3) MONITORING CORE (SERVICES, UPTIME, SSL, INCIDENTS, MAINTENANCE)
 
 CREATE TABLE monitored_services (
   monitored_service_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   uuid                   UUID UNIQUE DEFAULT gen_random_uuid(),
-  monitored_service_name VARCHAR(200) NOT NULL,   -- eg. 'mwalimu sacco', 'ndege chai'
+  monitored_service_name VARCHAR(200)  NOT NULL,   -- eg. 'mwalimu sacco', 'ndege chai'
   monitored_service_url  TEXT NOT NULL,
   monitored_service_region VARCHAR(100) DEFAULT 'default',
   check_interval         INTEGER,  -- the service is checked every _ minutes

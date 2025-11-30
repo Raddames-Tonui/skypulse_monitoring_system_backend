@@ -1,202 +1,387 @@
-package org.skypulse.handlers.services;
+package org.skypulse.services.tasks;
 
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
-import org.skypulse.config.database.DatabaseUtils;
-import org.skypulse.utils.HttpRequestUtil;
-import org.skypulse.utils.ResponseUtil;
+import com.github.mustachejava.DefaultMustacheFactory;
+import com.github.mustachejava.Mustache;
+import com.github.mustachejava.MustacheFactory;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.skypulse.config.database.JdbcUtils;
+import org.skypulse.config.database.dtos.SystemSettings.SystemDefaults;
+import org.skypulse.notifications.NotificationSender;
+import org.skypulse.services.ScheduledTask;
+import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.io.InputStream;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.sql.*;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 
-public class GetSingleMonitoredServiceHandler implements HttpHandler {
-    private static final Logger logger = LoggerFactory.getLogger(GetSingleMonitoredServiceHandler.class);
+public class NotificationProcessorTask implements ScheduledTask {
+
+    private static final Logger logger = LoggerFactory.getLogger(NotificationProcessorTask.class);
+
+    private final NotificationSender sender;
+    private final MustacheFactory mustacheFactory = new DefaultMustacheFactory();
+    private static final ObjectMapper mapper = JsonUtil.mapper();
+    private final SystemDefaults systemDefaults;
+    private final int intervalSeconds;
+
+    public NotificationProcessorTask(NotificationSender sender, SystemDefaults systemDefaults) {
+        this.sender = sender;
+        this.systemDefaults = systemDefaults;
+        this.intervalSeconds = Math.max(systemDefaults.notificationCheckInterval(), 3);
+    }
 
     @Override
-    public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
+    public String name() {
+        return "[ NotificationProcessorTask ]";
+    }
 
-        Deque<String> uuidParam = exchange.getQueryParameters().get("uuid");
-        if (uuidParam == null || uuidParam.isEmpty()) {
-            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing uuid parameter");
-            return;
+    @Override
+    public long intervalSeconds() {
+        return intervalSeconds;
+    }
+
+    @Override
+    public void execute() {
+        try (Connection conn = JdbcUtils.getConnection()) {
+            conn.setAutoCommit(false);
+
+            int retryCount = systemDefaults.notificationRetryCount();
+            int cooldownMinutes = systemDefaults.notificationCooldownMinutes();
+            int retryDelaySeconds = systemDefaults.uptimeRetryDelay();
+
+            String selectSql = """
+                    SELECT event_outbox_id, service_id, event_type, payload, first_failure_at
+                    FROM event_outbox
+                    WHERE status = 'PENDING'
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 50
+                    """;
+
+            try (PreparedStatement ps = conn.prepareStatement(selectSql);
+                 ResultSet rs = ps.executeQuery()) {
+
+                while (rs.next()) {
+                    long eventId = rs.getLong("event_outbox_id");
+                    long serviceId = rs.getLong("service_id");
+                    String eventType = rs.getString("event_type");
+                    String payloadJson = rs.getString("payload");
+                    Timestamp firstFailureAt = rs.getTimestamp("first_failure_at");
+
+                    try {
+                        JsonNode node = mapper.readTree(payloadJson);
+                        if (node.isArray()) {
+                            for (JsonNode item : node) {
+                                if (item.isObject()) {
+                                    Map<String, Object> payload = mapper.convertValue(item,
+                                            new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                                    processEvent(conn, eventId, serviceId, eventType, payload, firstFailureAt, cooldownMinutes, retryCount, retryDelaySeconds);
+                                }
+                            }
+                        } else if (node.isObject()) {
+                            Map<String, Object> payload = mapper.convertValue(node,
+                                    new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                            processEvent(conn, eventId, serviceId, eventType, payload, firstFailureAt, cooldownMinutes, retryCount, retryDelaySeconds);
+                        }
+                        markProcessed(conn, eventId);
+                    } catch (Exception e) {
+                        logger.error("[ NotificationProcessorTask ] Failed processing event {}: {}", eventId, e.getMessage(), e);
+                        try { markFailed(conn, eventId, e.getMessage()); } catch (SQLException ex) {
+                            logger.error("[ NotificationProcessorTask ] Failed to mark event {} failed: {}", eventId, ex.getMessage(), ex);
+                        }
+                    }
+                }
+
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                logger.error("[ NotificationProcessorTask ] Failed batch processing: {}", e.getMessage(), e);
+            } finally {
+                conn.setAutoCommit(true);
+            }
+
+        } catch (Exception e) {
+            logger.error("[ NotificationProcessorTask ] Database connection error: {}", e.getMessage(), e);
+        }
+    }
+
+    private void processEvent(Connection conn,
+                              long eventId,
+                              long serviceId,
+                              String eventType,
+                              Map<String, Object> payload,
+                              Timestamp firstFailureAt,
+                              int cooldownMinutes,
+                              int retryCount,
+                              int retryDelaySeconds) throws Exception {
+
+        logger.debug("[ NotificationProcessorTask ] Processing event: id={}, serviceId={}, type={}",
+                eventId, serviceId, eventType);
+
+        boolean allowedToSend = true;
+
+        // 1. COOLDOWN HANDLING
+        if ("SERVICE_DOWN".equals(eventType)) {
+            if (firstFailureAt != null) {
+                Instant expiry = firstFailureAt.toInstant().plus(Duration.ofMinutes(cooldownMinutes));
+                if (expiry.isAfter(Instant.now())) {
+                    logger.info("[ NotificationProcessorTask ] Skipping SERVICE_DOWN for service {} (cooldown active)", serviceId);
+                    allowedToSend = false;
+                }
+            } else {
+                // First failure: mark timestamp
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE event_outbox SET first_failure_at = NOW() WHERE event_outbox_id = ?")) {
+                    ps.setLong(1, eventId);
+                    ps.executeUpdate();
+                    logger.debug("[ NotificationProcessorTask ] Marked first_failure_at for event {}", eventId);
+                }
+            }
         }
 
-        String uuid = uuidParam.getFirst();
-        logger.debug("GetSingleMonitoredServiceHandler uuid={}", uuid);
-
-        UUID uuidValue;
-        try {
-            uuidValue = UUID.fromString(uuid);
-        } catch (IllegalArgumentException e) {
-            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid UUID format");
-            return;
+        // 2. DOWNTIME CALCULATION (RECOVERY)
+        if ("SERVICE_RECOVERED".equals(eventType) && firstFailureAt != null) {
+            Duration downtime = Duration.between(firstFailureAt.toInstant(), Instant.now());
+            payload.put("downtime_seconds", downtime.getSeconds());
+            logger.debug("[ NotificationProcessorTask ] Downtime computed: {} seconds for event {}",
+                    downtime.getSeconds(), eventId);
         }
 
-        //  aggregate last 30 uptime logs + all related arrays
-        String sql = """
-            WITH recent_uptime_logs AS (
-                SELECT *
-                FROM (
-                    SELECT ul.*,
-                           ROW_NUMBER() OVER (PARTITION BY ul.monitored_service_id ORDER BY ul.checked_at DESC) AS rn
-                    FROM uptime_logs ul
-                ) ranked
-                WHERE rn <= 30
-            )
-            SELECT
-                ms.monitored_service_id,
-                ms.uuid,
-                ms.monitored_service_name,
-                ms.monitored_service_url,
-                ms.monitored_service_region,
-                ms.check_interval,
-                ms.retry_count,
-                ms.retry_delay,
-                ms.expected_status_code,
-                ms.ssl_enabled,
-                ms.last_uptime_status,
-                ms.consecutive_failures,
-                ms.last_checked,
-                ms.created_by,
-                ms.date_created,
-                ms.date_modified,
-                ms.is_active,
+        if (!allowedToSend) return;
 
-                u.user_id AS creator_id,
-                u.first_name AS creator_first_name,
-                u.last_name AS creator_last_name,
-                u.user_email AS creator_email,
+        // 3. LOAD TEMPLATES
+        String subjectTpl;
+        String bodyTpl;
 
-                cgm.contact_group_id,
-                cg.uuid AS group_uuid,
-                cg.contact_group_name,
-                cg.contact_group_description,
+        try (PreparedStatement ps = conn.prepareStatement(
+                """
+                    SELECT subject_template, body_template, body_template_key, storage_mode
+                    FROM notification_templates
+                    WHERE event_type = ?
+                """)) {
 
-                COLLECT_LIST(STRUCT(
-                    ul.uptime_log_id AS id,
-                    ul.status AS status,
-                    ul.response_time_ms,
-                    ul.http_status,
-                    ul.error_message,
-                    ul.region AS region,
-                    ul.checked_at AS checked_at
-                )) AS uptime_logs,
+            ps.setString(1, eventType);
 
-                COLLECT_LIST(STRUCT(
-                    ssl.ssl_log_id AS id,
-                    ssl.domain,
-                    ssl.issuer,
-                    ssl.serial_number,
-                    ssl.signature_algorithm,
-                    ssl.public_key_algo,
-                    ssl.public_key_length,
-                    ssl.san_list,
-                    ssl.chain_valid,
-                    ssl.subject,
-                    ssl.fingerprint,
-                    ssl.issued_date,
-                    ssl.expiry_date,
-                    ssl.days_remaining,
-                    ssl.last_checked
-                )) AS ssl_logs,
-     
-                COLLECT_LIST(STRUCT(
-                    inc.incident_id AS id,
-                    inc.uuid AS uuid,
-                    inc.started_at,
-                    inc.resolved_at,
-                    inc.duration_minutes,
-                    inc.cause,
-                    inc.status
-                )) AS incidents,
-        
-                COLLECT_LIST(STRUCT(
-                    mw.maintenance_window_id AS id,
-                    mw.uuid AS uuid,
-                    mw.start_time,
-                    mw.end_time,
-                    mw.reason,
-                    mw.created_by
-                )) AS maintenance_windows
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new Exception("Template not found for event_type=" + eventType);
+                }
 
-            FROM monitored_services ms
-            LEFT JOIN users u ON ms.created_by = u.user_id
-            LEFT JOIN monitored_services_contact_groups cgm ON ms.monitored_service_id = cgm.monitored_service_id
-            LEFT JOIN contact_groups cg ON cgm.contact_group_id = cg.contact_group_id
-            LEFT JOIN recent_uptime_logs ul ON ms.monitored_service_id = ul.monitored_service_id
-            LEFT JOIN ssl_logs ssl ON ms.monitored_service_id = ssl.monitored_service_id
-            LEFT JOIN incidents inc ON ms.monitored_service_id = inc.monitored_service_id
-            LEFT JOIN maintenance_windows mw ON ms.monitored_service_id = mw.monitored_service_id
-            WHERE ms.uuid = ?
-            GROUP BY
-                ms.monitored_service_id,
-                ms.uuid,
-                ms.monitored_service_name,
-                ms.monitored_service_url,
-                ms.monitored_service_region,
-                ms.check_interval,
-                ms.retry_count,
-                ms.retry_delay,
-                ms.expected_status_code,
-                ms.ssl_enabled,
-                ms.last_uptime_status,
-                ms.consecutive_failures,
-                ms.last_checked,
-                ms.created_by,
-                ms.date_created,
-                ms.date_modified,
-                ms.is_active,
-                u.user_id,
-                u.first_name,
-                u.last_name,
-                u.user_email,
-                cgm.contact_group_id,
-                cg.uuid,
-                cg.contact_group_name,
-                cg.contact_group_description
-        """;
+                subjectTpl = rs.getString("subject_template");
+                String bodyDb = rs.getString("body_template");
+                String bodyKey = rs.getString("body_template_key");
+                String storageMode = rs.getString("storage_mode");
 
-        List<Map<String, Object>> rows = DatabaseUtils.query(sql, List.of(uuidValue));
-        if (rows.isEmpty()) {
-            ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, "Service not found");
-            return;
+                bodyTpl = loadTemplate(bodyDb, bodyKey, storageMode);
+
+                if (bodyTpl == null || bodyTpl.isBlank()) {
+                    throw new Exception("Resolved template is empty for event_type=" + eventType);
+                }
+            }
         }
 
-        Map<String, Object> row = rows.getFirst();
+        String subject = renderTemplate(subjectTpl, payload);
+        String body = renderTemplate(bodyTpl, payload);
 
-        Map<String, Object> service = new HashMap<>();
-        service.put("uuid", row.get("uuid"));
-        service.put("name", row.get("monitored_service_name"));
-        service.put("url", row.get("monitored_service_url"));
-        service.put("region", row.get("monitored_service_region"));
-        service.put("check_interval", row.get("check_interval"));
-        service.put("retry_count", row.get("retry_count"));
-        service.put("retry_delay", row.get("retry_delay"));
-        service.put("expected_status_code", row.get("expected_status_code"));
-        service.put("ssl_enabled", row.get("ssl_enabled"));
-        service.put("last_uptime_status", row.get("last_uptime_status"));
-        service.put("consecutive_failures", row.get("consecutive_failures"));
-        service.put("last_checked", row.get("last_checked"));
-        service.put("date_created", row.get("date_created"));
-        service.put("date_modified", row.get("date_modified"));
-        service.put("is_active", row.get("is_active"));
+        // 4. FETCH CONTACTS FOR THIS SERVICE
+        final String contactsSql =
+                """
+                SELECT
+                    cgm.contact_group_member_id,
+                    cgm.user_id,
+                    cg.contact_group_id,
+    
+                    uc.user_contacts_id,
+                    uc.type AS contact_type,
+                    uc.value AS contact_value,
+                    uc.is_primary,
+    
+                    nc.notification_channel_id
+                FROM monitored_services_contact_groups mscg
+                JOIN contact_groups cg
+                    ON cg.contact_group_id = mscg.contact_group_id
+                JOIN contact_group_members cgm
+                    ON cgm.contact_group_id = cg.contact_group_id
+                JOIN user_contacts uc
+                    ON uc.user_id = cgm.user_id
+                JOIN notification_channels nc
+                    ON nc.notification_channel_code = UPPER(uc.type)
+                WHERE mscg.monitored_service_id = ?
+                ORDER BY cgm.contact_group_member_id, uc.is_primary DESC
+                """;
 
-        Map<String, Object> creator = new HashMap<>();
-        creator.put("id", row.get("creator_id"));
-        creator.put("first_name", row.get("creator_first_name"));
-        creator.put("last_name", row.get("creator_last_name"));
-        creator.put("email", row.get("creator_email"));
-        service.put("created_by", creator);
+        try (PreparedStatement cgPs = conn.prepareStatement(contactsSql)) {
+            cgPs.setLong(1, serviceId);
 
-        service.put("contact_groups", row.get("contact_group_id") != null ? List.of(row) : Collections.emptyList());
-        service.put("uptime_logs", row.get("uptime_logs"));
-        service.put("ssl_logs", row.get("ssl_logs"));
-        service.put("incidents", row.get("incidents"));
-        service.put("maintenance_windows", row.get("maintenance_windows"));
+            try (ResultSet rs = cgPs.executeQuery()) {
 
-        ResponseUtil.sendSuccess(exchange, "Monitored Service fetched successfully.", service);
+                while (rs.next()) {
+
+                    long contactGroupId        = rs.getLong("contact_group_id");
+                    long memberId              = rs.getLong("contact_group_member_id");
+                    long contactId             = rs.getLong("user_contacts_id");
+                    long channelId             = rs.getLong("notification_channel_id");
+
+                    String contactType         = rs.getString("contact_type");     // email/sms/telegram/etc
+                    String destination         = rs.getString("contact_value");
+
+                    // Optional inline images (can be made template-specific)
+                    Map<String, String> inlineImages =
+                            Map.of("tatuaLogo", "src/main/resources/images/tatua-logo.png");
+
+                    boolean sent = false;
+                    Exception lastException = null;
+
+                    // 5. SEND WITH RETRIES
+                    for (int attempt = 1; attempt <= retryCount && !sent; attempt++) {
+
+                        try {
+                            sent = sender.send(contactType.toUpperCase(), destination, subject, body, inlineImages);
+                        } catch (Exception e) {
+                            lastException = e;
+                            sent = false;
+                        }
+
+                        if (!sent) {
+                            logger.warn("[ NotificationProcessorTask ] Attempt {} failed for contact {} [{}={}]. Retrying...",
+                                    attempt, contactId, contactType, destination);
+
+                            Thread.sleep(retryDelaySeconds * 1000L);
+                        }
+                    }
+
+                    // 6. LOG HISTORY
+                    try (PreparedStatement logPs = conn.prepareStatement(
+                            """
+                            INSERT INTO notification_history (
+                                service_id,
+                                contact_group_id,
+                                contact_group_member_id,
+                                notification_channel_id,
+                                recipient,
+                                subject,
+                                message,
+                                status,
+                                sent_at,
+                                error_message
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                            """
+                    )) {
+
+                        logPs.setLong(1, serviceId);
+                        logPs.setLong(2, contactGroupId);
+                        logPs.setLong(3, memberId);
+                        logPs.setLong(4, channelId);
+
+                        logPs.setString(5, destination);
+                        logPs.setString(6, subject);
+                        logPs.setString(7, body);
+                        logPs.setString(8, sent ? "sent" : "failed");
+
+                        String err = sent ? null :
+                                (lastException != null ? lastException.getMessage() : "Retries exhausted");
+
+                        logPs.setString(9, err);
+                        logPs.executeUpdate();
+
+                    } catch (SQLException logEx) {
+                        logger.error("[ NotificationProcessorTask ] Failed to write notification history for contact {}: {}",
+                                contactId, logEx.getMessage(), logEx);
+                    }
+
+                    // 7. LOG SEND RESULT
+                    if (sent) {
+                        logger.info("[ NotificationProcessorTask ] Notification sent: eventId={}, serviceId={}, contactId={}, type={}, dest={}",
+                                eventId, serviceId, contactId, contactType, destination);
+                    } else {
+                        logger.warn("[ NotificationProcessorTask ] Notification NOT sent after {} attempts: eventId={}, serviceId={}, contactId={}, type={}, dest={}",
+                                retryCount, eventId, serviceId, contactId, contactType, destination);
+                    }
+                }
+            }
+        }
+    }
+
+
+    private String renderTemplate(String template, Map<String, Object> data) throws Exception {
+        Mustache mustache = mustacheFactory.compile(new StringReader(template), "template");
+        StringWriter writer = new StringWriter();
+        mustache.execute(writer, data).flush();
+        return writer.toString();
+    }
+
+    private void markProcessed(Connection conn, long eventId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE event_outbox SET status='PROCESSED', updated_at=NOW() WHERE event_outbox_id = ?"
+        )) {
+            ps.setLong(1, eventId);
+            ps.executeUpdate();
+        }
+    }
+
+    private void markFailed(Connection conn, long eventId, String reason) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE event_outbox SET status='FAILED', updated_at=NOW(), payload = payload || to_jsonb(?::text) WHERE event_outbox_id = ?"
+        )) {
+            ps.setString(1, "{\"error\":\"" + reason.replace("\"", "'") + "\"}");
+            ps.setLong(2, eventId);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Load templates in order:
+     * 1) external folder (notification.templates.path system property or ./templates)
+     * 2) classpath resource under /templates/
+     * 3) DB fallback (bodyTemplateDb)
+     */
+    private String loadTemplate(String bodyTemplateDb, String bodyTemplateKey, String storageMode) {
+        String template = null;
+
+        // 1) External folder
+        String externalPath = System.getProperty("notification.templates.path", System.getProperty("user.dir") + "/templates");
+        if (bodyTemplateKey != null && !bodyTemplateKey.isBlank()) {
+            try {
+                template = Files.readString(Paths.get(externalPath, bodyTemplateKey));
+                if (template != null && !template.isBlank()) {
+                    logger.info("[ NotificationProcessorTask ] Loaded template from external folder: {}", bodyTemplateKey);
+                    return template;
+                }
+            } catch (Exception e) {
+                logger.warn("[ NotificationProcessorTask ] External template not found or failed to read, will try classpath. Key: {} - {}", bodyTemplateKey, e.getMessage());
+            }
+        }
+
+        // 2) Classpath
+        if (bodyTemplateKey != null && !bodyTemplateKey.isBlank()) {
+            try (InputStream is = getClass().getClassLoader().getResourceAsStream("templates/" + bodyTemplateKey)) {
+                if (is != null) {
+                    template = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                    logger.info("[ NotificationProcessorTask ] Loaded template from classpath: {}", bodyTemplateKey);
+                    return template;
+                }
+            } catch (Exception e) {
+                logger.warn("[ NotificationProcessorTask ] Classpath template failed to load, will try DB. Key: {} - {}", bodyTemplateKey, e.getMessage());
+            }
+        }
+
+        // 3) DB fallback
+        if (bodyTemplateDb != null && !bodyTemplateDb.isBlank()) {
+            template = bodyTemplateDb;
+            logger.info("[ NotificationProcessorTask ] Using DB template as fallback.");
+        } else {
+            logger.error("[ NotificationProcessorTask ] No template found in external folder, classpath, or DB for key: {}", bodyTemplateKey);
+        }
+
+        return template;
     }
 }

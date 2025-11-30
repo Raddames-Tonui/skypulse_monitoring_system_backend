@@ -3,6 +3,7 @@ package org.skypulse.handlers.logs;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.DatabaseManager;
+import org.skypulse.rest.auth.RequireRoles;
 import org.skypulse.utils.QueryUtil;
 import org.skypulse.utils.ResponseUtil;
 
@@ -11,6 +12,7 @@ import java.util.*;
 
 import static org.skypulse.utils.DbUtil.setParams;
 
+@RequireRoles({"ADMIN", "OPERATOR", "VIEWER"})
 public class GetUptimeLogsHandler implements HttpHandler {
 
     private static final Map<String, String> SORT_MAP = Map.of(

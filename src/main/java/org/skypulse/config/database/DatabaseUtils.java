@@ -1,15 +1,20 @@
 package org.skypulse.config.database;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.postgresql.util.PGobject;
+
 import java.sql.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Utility class to handle database operations with pagination, filtering, and sorting.
+ * Utility class to handle database operations with pagination, filtering, sorting, and JSONB support.
  */
 public final class DatabaseUtils {
 
     private DatabaseUtils() {} // static-only utility class
+
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     // --- Pagination helpers ---
     public static int parseIntParam(Deque<String> param, int defaultValue) {
@@ -108,14 +113,17 @@ public final class DatabaseUtils {
         return first ? "" : sb.toString();
     }
 
-    // --- Query helper ---
+    // --- Query helper with JSONB support ---
     public static List<Map<String, Object>> query(String sql, List<Object> params) throws SQLException {
         List<Map<String, Object>> result = new ArrayList<>();
+
         try (Connection conn = JdbcUtils.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            for (int i = 0; i < params.size(); i++) {
-                stmt.setObject(i + 1, params.get(i));
+            if (params != null) {
+                for (int i = 0; i < params.size(); i++) {
+                    stmt.setObject(i + 1, params.get(i));
+                }
             }
 
             ResultSet rs = stmt.executeQuery();
@@ -125,7 +133,23 @@ public final class DatabaseUtils {
             while (rs.next()) {
                 Map<String, Object> row = new HashMap<>();
                 for (int i = 1; i <= columns; i++) {
-                    row.put(md.getColumnName(i), rs.getObject(i));
+                    Object value = rs.getObject(i);
+
+                    // Automatically parse JSONB columns
+                    if (value instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+                        if (pg.getValue() != null) {
+                            try {
+                                row.put(md.getColumnName(i), mapper.readValue(pg.getValue(), Map.class));
+                            } catch (Exception e) {
+                                // fallback to raw JSON string if parsing fails
+                                row.put(md.getColumnName(i), pg.getValue());
+                            }
+                        } else {
+                            row.put(md.getColumnName(i), null);
+                        }
+                    } else {
+                        row.put(md.getColumnName(i), value);
+                    }
                 }
                 result.add(row);
             }

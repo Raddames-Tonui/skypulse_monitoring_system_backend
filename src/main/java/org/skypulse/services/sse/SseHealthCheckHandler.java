@@ -35,12 +35,14 @@ public class SseHealthCheckHandler extends SseHandler {
             systemDefaults = null;
         }
 
+        // Basic system info
         response.put("app", "SkyPulse REST API");
         response.put("version", "1.0.0");
         response.put("environment", KeyProvider.getEnvironment());
         response.put("uptime_seconds", Duration.between(START_TIME, Instant.now()).toSeconds());
         response.put("timestamp", Instant.now().toString());
 
+        // Database status
         boolean dbOK = false;
         if (DatabaseManager.isInitialized()) {
             try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
@@ -50,6 +52,7 @@ public class SseHealthCheckHandler extends SseHandler {
         response.put("database", "PostgreSQL");
         response.put("database_status", dbOK ? "connected" : "unavailable");
 
+        // SSE push interval
         response.put("sse_push_interval_seconds", systemDefaults != null
                 ? systemDefaults.ssePushInterval()
                 : 60);

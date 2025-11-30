@@ -2,6 +2,9 @@ package org.skypulse.utils.security;
 
 import org.mindrot.jbcrypt.BCrypt;
 
+import java.util.Base64;
+import java.util.Random;
+
 
 public class PasswordUtil {
     private PasswordUtil(){}
@@ -20,5 +23,18 @@ public class PasswordUtil {
         } catch (Exception e) {
             return false;
         }
+    }
+
+
+    public static boolean isValidEmail(String email) {
+        if (email == null) return false;
+        String regex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
+        return email.matches(regex);
+    }
+
+    public static String generateToken() {
+        byte[] bytes = new byte[32];
+        new Random().nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }
