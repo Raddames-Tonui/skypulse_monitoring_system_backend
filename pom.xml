@@ -71,6 +71,24 @@
         </dependency>
 
 
+<!--        JFreeChart — the charting library.-->
+<!--        JCommon — a supporting library JFreeChart depends on.-->
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreechart</artifactId>
+            <version>1.5.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>org.jfree.svg</artifactId>
+            <version>5.0.6</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>jcommon</artifactId>
+            <version>1.0.24</version>
+        </dependency>
+
 
         <!-- Logging -->
         <dependency>

@@ -1,21 +1,27 @@
 package org.skypulse.handlers.reports;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.openhtmltopdf.svgsupport.BatikSVGDrawer;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Headers;
+
 import org.skypulse.config.database.JdbcUtils;
 import org.skypulse.config.database.DatabaseUtils;
 import org.skypulse.utils.ResponseUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+
 import java.util.*;
 
 public class GenerateUptimePdfReports implements HttpHandler {
@@ -40,25 +46,48 @@ public class GenerateUptimePdfReports implements HttpHandler {
             return;
         }
 
+        String serviceIdParam = DatabaseUtils.getParam(exchange.getQueryParameters(), "service_id");
+        Long serviceId = (serviceIdParam != null && !serviceIdParam.isBlank()) ? Long.parseLong(serviceIdParam) : null;
+
+        String statusFilter = DatabaseUtils.getParam(exchange.getQueryParameters(), "status");
+
+        String downloadParam = DatabaseUtils.getParam(exchange.getQueryParameters(), "download");
+        boolean forceDownload =
+                "1".equals(downloadParam) ||
+                        "true".equalsIgnoreCase(downloadParam) ||
+                        "yes".equalsIgnoreCase(downloadParam);
+
         try {
             List<String> rows = new ArrayList<>();
 
-            String sql = """
-                SELECT ms.monitored_service_name, ul.status, ul.response_time_ms, ul.http_status, ul.error_message, ul.checked_at
+            StringBuilder sqlBuilder = new StringBuilder("""
+                SELECT ms.monitored_service_name, ul.status, ul.response_time_ms, 
+                       ul.http_status, ul.error_message, ul.checked_at
                 FROM monitored_services ms
                 LEFT JOIN uptime_logs ul ON ms.monitored_service_id = ul.monitored_service_id
                 WHERE ul.checked_at >= NOW() - (? || ' days')::interval
-                ORDER BY ul.checked_at ASC
-            """;
+            """);
+
+            if (serviceId != null) sqlBuilder.append(" AND ms.monitored_service_id = ?");
+            if (statusFilter != null && !statusFilter.isBlank()) sqlBuilder.append(" AND ul.status = ?");
+
+            sqlBuilder.append(" ORDER BY ul.checked_at ASC");
+            String sql = sqlBuilder.toString();
 
             try (Connection conn = JdbcUtils.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
 
-                ps.setInt(1, days);
+                int index = 1;
+                ps.setInt(index++, days);
+                if (serviceId != null) ps.setLong(index++, serviceId);
+                if (statusFilter != null && !statusFilter.isBlank()) ps.setString(index, statusFilter.toUpperCase());
+
                 try (ResultSet rs = ps.executeQuery()) {
                     DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
                     while (rs.next()) {
                         String status = rs.getString("status");
+
                         String row = String.format("""
                             <tr>
                               <td>%s</td>
@@ -82,24 +111,59 @@ public class GenerateUptimePdfReports implements HttpHandler {
                 }
             }
 
+            StringBuilder filtersHtml = new StringBuilder("<ul style='list-style: none; padding: 0;'>");
+            filtersHtml.append("<li><strong>Period:</strong> ").append(days).append(" day(s)</li>");
+            if (serviceId != null) filtersHtml.append("<li><strong>Service ID:</strong> ").append(serviceId).append("</li>");
+            if (statusFilter != null && !statusFilter.isBlank())
+                filtersHtml.append("<li><strong>Status:</strong> ").append(statusFilter.toUpperCase()).append("</li>");
+            filtersHtml.append("</ul>");
+
             String html = loadHtmlTemplate()
-                    .replace("{{DATE_ISSUED}}", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
-                    .replace("{{UPTIME_ROWS}}", rows.isEmpty() ? "<tr><td colspan='5'>No records found</td></tr>" : String.join("\n", rows));
+                    .replace("{{DATE_ISSUED}}", LocalDateTime.now()
+                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                    .replace("{{UPTIME_ROWS}}",
+                            rows.isEmpty() ? "<tr><td colspan='5'>No records found</td></tr>"
+                                    : String.join("\n", rows))
+                    .replace("{{FILTERS_APPLIED}}", filtersHtml.toString());
 
-            // Ensure output directory exists
-            File outputFile = new File("src/out/Uptime_Report.pdf");
-            File parentDir = outputFile.getParentFile();
-            if (!parentDir.exists()) parentDir.mkdirs();
+            ByteArrayOutputStream pdfStream = new ByteArrayOutputStream();
 
-            try (FileOutputStream os = new FileOutputStream(outputFile)) {
-                PdfRendererBuilder builder = new PdfRendererBuilder();
-                builder.withHtmlContent(html, null);
-                builder.toStream(os);
-                builder.run();
+            PdfRendererBuilder builder = new PdfRendererBuilder();
+            builder.useFastMode();
+            builder.useSVGDrawer(new BatikSVGDrawer());
+
+            builder.useUriResolver((baseUri, uri) -> {
+                if (uri.startsWith("assets/") || uri.startsWith("images/") || uri.startsWith("logos/")) {
+                    return GenerateUptimePdfReports.class
+                            .getClassLoader()
+                            .getResource(uri)
+                            .toString();
+                }
+                return uri;
+            });
+
+            builder.withHtmlContent(html, null);
+            builder.toStream(pdfStream);
+            builder.run();
+
+            byte[] pdfBytes = pdfStream.toByteArray();
+
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/pdf");
+
+            if (forceDownload) {
+                exchange.getResponseHeaders().put(
+                        Headers.CONTENT_DISPOSITION,
+                        "attachment; filename=\"Uptime_Report.pdf\""
+                );
+            } else {
+                exchange.getResponseHeaders().put(
+                        Headers.CONTENT_DISPOSITION,
+                        "inline; filename=\"Uptime_Report.pdf\""
+                );
             }
 
-            logger.info("Uptime PDF successfully generated at {}", outputFile.getAbsolutePath());
-            ResponseUtil.sendSuccess(exchange, "Uptime PDF generated successfully", Map.of("file", outputFile.getAbsolutePath()));
+            exchange.getResponseSender().send(ByteBuffer.wrap(pdfBytes));
+            logger.info("Uptime PDF streamed to client (download=" + forceDownload + ")");
 
         } catch (Exception e) {
             logger.error("Failed to generate Uptime PDF", e);
