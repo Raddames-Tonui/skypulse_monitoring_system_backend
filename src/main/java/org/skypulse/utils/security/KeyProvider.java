@@ -14,31 +14,28 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * KeyProvider = Central secret manager for SkyPulse.
- *
  * Responsibilities:
  *   1. Load environment (.env + system ENV)
  *   2. Initialize correct Logback (dev/prod)
  *   3. Provide ANY secret (JWT, API keys, DB overrides)
  *   4. Provide encryption key for SecureFieldCrypto
- *
+ *   5. Provide frontend base URL
  * Priority for secret resolution:
  *     1. System environment variable
  *     2. .env file
- *     3. (Optional) secure file
  */
 public class KeyProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(KeyProvider.class);
 
-    private static final String ENV_MASTER_KEY  = "CONFIG_MASTER_KEY";
-    private static final String ENV_ENVIRONMENT = "APP_ENV";
+    private static final String ENV_MASTER_KEY      = "CONFIG_MASTER_KEY";
+    private static final String ENV_ENVIRONMENT     = "APP_ENV";
+    private static final String ENV_FRONTEND_BASE_URL = "FRONTEND_BASE_URL";
 
     private static volatile boolean initialized = false;
     private static String activeEnv = "PRODUCTION";
     private static Dotenv dotenv;
-
     private static final ConcurrentHashMap<String, String> CACHE = new ConcurrentHashMap<>();
-
 
     private static synchronized void init() {
         if (initialized) return;
@@ -63,7 +60,6 @@ public class KeyProvider {
             }
 
             initialized = true;
-
             logger.info("KeyProvider initialized — Environment: {}", activeEnv);
 
         } catch (Exception e) {
@@ -72,16 +68,12 @@ public class KeyProvider {
         }
     }
 
-
     public static String get(String keyName) {
         if (!initialized) init();
 
-        if (CACHE.containsKey(keyName)) {
-            return CACHE.get(keyName);
-        }
+        if (CACHE.containsKey(keyName)) return CACHE.get(keyName);
 
         String value = System.getenv(keyName);
-
         if ((value == null || value.isBlank()) && dotenv != null) {
             value = dotenv.get(keyName);
         }
@@ -101,50 +93,48 @@ public class KeyProvider {
         return value.trim();
     }
 
-
-    /** ENCRYPTION MASTER KEY */
+    /** Encryption master key */
     public static String getEncryptionKey() {
         return get(ENV_MASTER_KEY);
     }
 
+    /** Frontend base URL */
+    public static String getFrontendBaseUrl() {
+        if (!initialized) init();
 
-    /** SECURE FILE-BASED SECRET LOADING  */
+        String value = System.getenv(ENV_FRONTEND_BASE_URL);
+        if ((value == null || value.isBlank()) && dotenv != null) {
+            value = dotenv.get(ENV_FRONTEND_BASE_URL);
+        }
+
+        if (value == null || value.isBlank()) {
+            logger.warn("FRONTEND_BASE_URL not set, defaulting to http://localhost:5173");
+            value = "http://localhost:5173";
+        }
+
+        return value.trim();
+    }
+
+    /** Load secret from file */
     public static String getKeyFromFile(String filePath) {
         if (!initialized) init();
 
         try {
             Path path = Paths.get(filePath);
             String key = Files.readString(path).trim();
-
-            if (key.isEmpty()) {
-                throw new IllegalStateException("Secure key file is empty: " + filePath);
-            }
-
+            if (key.isEmpty()) throw new IllegalStateException("Secure key file is empty: " + filePath);
             logger.info("Loaded secret from secure file: {}", filePath);
             return key;
-
         } catch (Exception e) {
             throw new IllegalStateException("Failed reading secure key from file: " + filePath, e);
         }
     }
 
+    public static boolean isDev() { return "DEVELOPMENT".equalsIgnoreCase(activeEnv); }
+    public static boolean isProd() { return !"DEVELOPMENT".equalsIgnoreCase(activeEnv); }
+    public static String getEnvironment() { if (!initialized) init(); return activeEnv; }
 
-    /** ENVIRONMENT HELPERS (NO RECURSION) */
-    public static boolean isDev() {
-        return "DEVELOPMENT".equalsIgnoreCase(activeEnv);
-    }
-
-    public static boolean isProd() {
-        return !"DEVELOPMENT".equalsIgnoreCase(activeEnv);
-    }
-
-    public static String getEnvironment() {
-        if (!initialized) init();
-        return activeEnv;
-    }
-
-
-    /**LOAD LOGBACK SAFELY (NO LOGGER until fully initialized)*/
+    /** Load logback safely */
     private static void loadLogback(String fileName) {
         try {
             LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -152,12 +142,9 @@ public class KeyProvider {
 
             JoranConfigurator configurator = new JoranConfigurator();
             configurator.setContext(ctx);
-            configurator.doConfigure(
-                    KeyProvider.class.getClassLoader().getResourceAsStream(fileName)
-            );
+            configurator.doConfigure(KeyProvider.class.getClassLoader().getResourceAsStream(fileName));
 
             StatusPrinter.printInCaseOfErrorsOrWarnings(ctx);
-
         } catch (Exception e) {
             System.err.println("ERROR loading logback: " + fileName + " → " + e.getMessage());
         }

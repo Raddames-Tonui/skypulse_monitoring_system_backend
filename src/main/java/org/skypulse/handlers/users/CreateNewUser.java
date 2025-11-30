@@ -8,6 +8,7 @@ import org.skypulse.rest.auth.RequireRoles;
 import org.skypulse.utils.AuditLogger;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
+import org.skypulse.utils.security.KeyProvider;
 import org.skypulse.utils.security.PasswordUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,9 +68,8 @@ public class CreateNewUser implements HttpHandler {
 
                 String token = createOneTimeToken(conn, userInfo.userId());
 
-                String frontendBaseUrl = System.getProperty("frontend.base.url", "http://localhost:5173");
+                String frontendBaseUrl = KeyProvider.getFrontendBaseUrl();
                 String oneTimeLink = frontendBaseUrl + "/auth/set-password?token=" + token;
-
                 insertEvent(conn, userInfo.userId(), email, oneTimeLink);
 
                 AuditLogger.log(exchange, "users", userInfo.userId(), "CREATE", null, Map.of(
@@ -83,7 +83,7 @@ public class CreateNewUser implements HttpHandler {
                 conn.commit();
 
                 ResponseUtil.sendCreated(exchange,
-                        "User creation queued. Password token generation queued. Email queued for sending.",
+                        "User created. Email queued for sending.",
                         Map.of(
                                 "userId", userInfo.userId(),
                                 "uuid", userInfo.uuid(),

@@ -18,6 +18,7 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import static org.skypulse.handlers.services.CreateMonitoredServiceHandler.setServiceParams;
 
@@ -44,12 +45,12 @@ public class UpdateMonitoredServiceHandler implements HttpHandler {
             return;
         }
 
-        String uuid = HttpRequestUtil.getString(body, "uuid");
-
-        if (uuid == null) {
+        String uuidStr = HttpRequestUtil.getString(body, "uuid");
+        if (uuidStr == null) {
             ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing required field: uuid for update operation");
             return;
         }
+        UUID uuid = UUID.fromString(uuidStr);
 
         String name = HttpRequestUtil.getString(body, "monitored_service_name");
         String url = HttpRequestUtil.getString(body, "monitored_service_url");
@@ -65,63 +66,64 @@ public class UpdateMonitoredServiceHandler implements HttpHandler {
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
             if (url != null) {
-                PreparedStatement checkUrl = conn.prepareStatement(
+                try (PreparedStatement checkUrl = conn.prepareStatement(
                         "SELECT uuid FROM monitored_services WHERE monitored_service_url = ? AND uuid != ?"
-                );
-                checkUrl.setString(1, url);
-                checkUrl.setString(2, uuid);
-                ResultSet rsCheck = checkUrl.executeQuery();
-                if (rsCheck.next()) {
-                    ResponseUtil.sendError(exchange, StatusCodes.CONFLICT,
-                            "Monitored service URL already exists for another service");
-                    return;
+                )) {
+                    checkUrl.setString(1, url);
+                    checkUrl.setObject(2, uuid);
+                    try (ResultSet rsCheck = checkUrl.executeQuery()) {
+                        if (rsCheck.next()) {
+                            ResponseUtil.sendError(exchange, StatusCodes.CONFLICT,
+                                    "Monitored service URL already exists for another service");
+                            return;
+                        }
+                    }
                 }
-                rsCheck.close();
-                checkUrl.close();
             }
 
-            PreparedStatement getOld = conn.prepareStatement(
+            long serviceId;
+            String beforeData;
+            try (PreparedStatement getOld = conn.prepareStatement(
                     "SELECT monitored_service_id, row_to_json(t) AS data FROM (SELECT * FROM monitored_services WHERE uuid = ?) t"
-            );
-            getOld.setString(1, uuid);
-            ResultSet rsOld = getOld.executeQuery();
-            if (!rsOld.next()) {
-                ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, "Service not found");
-                return;
+            )) {
+                getOld.setObject(1, uuid);
+                try (ResultSet rsOld = getOld.executeQuery()) {
+                    if (!rsOld.next()) {
+                        ResponseUtil.sendError(exchange, StatusCodes.NOT_FOUND, "Service not found");
+                        return;
+                    }
+                    serviceId = rsOld.getLong("monitored_service_id");
+                    beforeData = rsOld.getString("data");
+                }
             }
 
-            long serviceId = rsOld.getLong("monitored_service_id");
-            String beforeData = rsOld.getString("data");
-            rsOld.close();
-            getOld.close();
+            try (PreparedStatement psUpdate = conn.prepareStatement("""
+                    UPDATE monitored_services SET
+                        monitored_service_name = COALESCE(?, monitored_service_name),
+                        monitored_service_url = COALESCE(?, monitored_service_url),
+                        monitored_service_region = COALESCE(?, monitored_service_region),
+                        check_interval = COALESCE(?, check_interval),
+                        retry_count = COALESCE(?, retry_count),
+                        retry_delay = COALESCE(?, retry_delay),
+                        expected_status_code = COALESCE(?, expected_status_code),
+                        ssl_enabled = COALESCE(?, ssl_enabled),
+                        date_modified = ?
+                    WHERE uuid = ?
+                """)) {
 
-            PreparedStatement psUpdate = conn.prepareStatement("""
-                UPDATE monitored_services SET
-                    monitored_service_name = COALESCE(?, monitored_service_name),
-                    monitored_service_url = COALESCE(?, monitored_service_url),
-                    monitored_service_region = COALESCE(?, monitored_service_region),
-                    check_interval = COALESCE(?, check_interval),
-                    retry_count = COALESCE(?, retry_count),
-                    retry_delay = COALESCE(?, retry_delay),
-                    expected_status_code = COALESCE(?, expected_status_code),
-                    ssl_enabled = COALESCE(?, ssl_enabled),
-                    date_modified = ?
-                WHERE uuid = ?
-            """);
+                setServiceParams(psUpdate, name, url, region, checkInterval, retryCount, retryDelay, expectedStatus);
+                psUpdate.setObject(8, sslEnabled);
+                psUpdate.setTimestamp(9, now);
+                psUpdate.setObject(10, uuid);
 
-            setServiceParams(psUpdate, name, url, region, checkInterval, retryCount, retryDelay, expectedStatus);
-            psUpdate.setObject(8, sslEnabled);
-            psUpdate.setTimestamp(9, now);
-            psUpdate.setString(10, uuid);
-
-            psUpdate.executeUpdate();
-            psUpdate.close();
+                psUpdate.executeUpdate();
+            }
 
             AuditLogger.log(exchange, "monitored_services", serviceId,
                     "UPDATE", beforeData, HttpRequestUtil.toJsonString(body));
 
             ResponseUtil.sendSuccess(exchange, "Monitored service updated",
-                    Map.of("uuid", uuid));
+                    Map.of("uuid", uuidStr));
 
         } catch (Exception e) {
             logger.error("Update failed: {}", e.getMessage(), e);

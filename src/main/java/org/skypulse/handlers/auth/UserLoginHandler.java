@@ -40,11 +40,17 @@ public class UserLoginHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        UserLoginRequest req = mapper.readValue(exchange.getInputStream(), UserLoginRequest.class);
+        UserLoginRequest req;
+        try {
+            req = mapper.readValue(exchange.getInputStream(), UserLoginRequest.class);
+        } catch (Exception e) {
+            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid request payload");
+            return;
+        }
 
         if (req.email == null || req.email.isBlank() ||
                 req.password == null || req.password.isBlank()) {
-            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing required fields: email and password");
+            ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Email and password are required");
             return;
         }
 
@@ -70,7 +76,7 @@ public class UserLoginHandler implements HttpHandler {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         logLoginFailure(conn, req.email, ipAddress, userAgent, "Email not found");
-                        ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Please check your credentials");
+                        ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Invalid credentials");
                         return;
                     }
 
@@ -84,7 +90,7 @@ public class UserLoginHandler implements HttpHandler {
 
                     if (rs.getBoolean("is_deleted")) {
                         logLoginFailure(conn, email, ipAddress, userAgent, "Account deleted");
-                        ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "Please contact administrator.");
+                        ResponseUtil.sendError(exchange, StatusCodes.FORBIDDEN, "Please contact administrator");
                         return;
                     }
                 }
@@ -95,7 +101,6 @@ public class UserLoginHandler implements HttpHandler {
                 ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Invalid credentials");
                 return;
             }
-
 
             String roleName = "";
             if (roleId != null) {
@@ -108,7 +113,6 @@ public class UserLoginHandler implements HttpHandler {
             }
 
             Instant now = Instant.now();
-
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
 
@@ -132,7 +136,11 @@ public class UserLoginHandler implements HttpHandler {
                 ps.setString(9, deviceName);
 
                 try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) throw new SQLException("Failed to create auth_session");
+                    if (!rs.next()) {
+                        ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR,
+                                "Failed to create login session. Please try again");
+                        return;
+                    }
                     jwtId = (UUID) rs.getObject("jwt_id");
                 }
             }
@@ -161,13 +169,12 @@ public class UserLoginHandler implements HttpHandler {
                     "dashboard_layout", Map.of("type", "jsonb", "value", "{}", "null", false)
             ));
 
-            Map<String, Object> data = Map.of("user", profile);
-
-            ResponseUtil.sendSuccess(exchange, "Login successful", data);
+            ResponseUtil.sendSuccess(exchange, "Login successful", Map.of("user", profile));
 
         } catch (Exception e) {
             logger.error("Login failed", e);
-            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, "Internal Server Error");
+            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR,
+                    "Internal server error. Please try again later.");
         }
     }
 

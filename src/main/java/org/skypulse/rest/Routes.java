@@ -41,6 +41,8 @@ public class Routes {
                 .get("/profile", secure(new GetUserProfileHandler(), accessToken))
                 .post("/logout", secure(new LogoutHandler(), accessToken))
                 .post("/activate", open(new ActivateUserHandler()))
+                .post("/request/reset-password", open(new RequestResetPasswordHandler()))
+                .post("/reset-password", open(new ResetPasswordHandler()))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }

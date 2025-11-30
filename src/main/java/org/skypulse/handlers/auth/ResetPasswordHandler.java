@@ -22,9 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class ActivateUserHandler implements HttpHandler {
+public class ResetPasswordHandler implements HttpHandler {
 
-    private static final Logger logger = LoggerFactory.getLogger(ActivateUserHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(ResetPasswordHandler.class);
     private final ObjectMapper mapper = JsonUtil.mapper();
     private final long REFRESH_TOKEN_TTL = 30L * 24 * 3600; // 30 days
 
@@ -44,13 +44,13 @@ public class ActivateUserHandler implements HttpHandler {
         }
 
         String token = (input.get("token") instanceof String) ? (String) input.get("token") : null;
-        String password = (input.get("password") instanceof String) ? (String) input.get("password") : null;
+        String newPassword = (input.get("password") instanceof String) ? (String) input.get("password") : null;
 
-        if (token == null || token.isBlank() || password == null || password.isBlank()) {
+        if (token == null || token.isBlank() || newPassword == null || newPassword.isBlank()) {
             ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Token and password are required");
             return;
         }
-        if (password.length() < 6) {
+        if (newPassword.length() < 6) {
             ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Password must be at least 6 characters");
             return;
         }
@@ -59,13 +59,14 @@ public class ActivateUserHandler implements HttpHandler {
             conn.setAutoCommit(false);
             long userId;
 
+            // 1. Validate reset token
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT token_id, user_id, is_used, expires_at FROM user_password_tokens WHERE token = ? FOR UPDATE"
             )) {
                 ps.setString(1, token);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
-                        ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid activation token");
+                        ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Invalid reset token");
                         return;
                     }
                     if (rs.getBoolean("is_used")) {
@@ -74,16 +75,17 @@ public class ActivateUserHandler implements HttpHandler {
                     }
                     Timestamp expiresAt = rs.getTimestamp("expires_at");
                     if (expiresAt.toInstant().isBefore(Instant.now())) {
-                        ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Activation token expired");
+                        ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Reset token expired");
                         return;
                     }
                     userId = rs.getLong("user_id");
                 }
             }
 
-            String hashedPassword = PasswordUtil.hashPassword(password);
+            // 2. Update password
+            String hashedPassword = PasswordUtil.hashPassword(newPassword);
             try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE users SET password_hash = ?, is_active = TRUE, date_modified = NOW() WHERE user_id = ?"
+                    "UPDATE users SET password_hash = ?, date_modified = NOW() WHERE user_id = ?"
             )) {
                 ps.setString(1, hashedPassword);
                 ps.setLong(2, userId);
@@ -93,6 +95,7 @@ public class ActivateUserHandler implements HttpHandler {
                 }
             }
 
+            // 3. Mark token used
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE user_password_tokens SET is_used = TRUE WHERE token = ?"
             )) {
@@ -100,6 +103,7 @@ public class ActivateUserHandler implements HttpHandler {
                 ps.executeUpdate();
             }
 
+            // 4. Get email
             String email;
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT user_email FROM users WHERE user_id = ?"
@@ -116,6 +120,7 @@ public class ActivateUserHandler implements HttpHandler {
                 }
             }
 
+            // 5. Ensure primary email
             boolean emailExists = false;
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT 1 FROM user_contacts WHERE user_id = ? AND type='EMAIL' AND value = ?"
@@ -143,6 +148,7 @@ public class ActivateUserHandler implements HttpHandler {
                 }
             }
 
+            // 6. Create refresh token session
             try {
                 Instant now = Instant.now();
                 String refreshToken = TokenUtil.generateToken();
@@ -170,12 +176,12 @@ public class ActivateUserHandler implements HttpHandler {
                     exchange.setResponseCookie(cookie);
                 }
             } catch (Exception e) {
-                logger.warn("Failed creating refresh token session, activation succeeded for user {}", userId, e);
+                logger.warn("Failed creating refresh token session after password reset for user {}", userId, e);
             }
 
             conn.commit();
 
-            // 10. Build user profile
+            // 7. Build user profile
             String userUuid = null, firstName = null, lastName = null, roleName = null;
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT uuid, first_name, last_name, r.role_name FROM users u LEFT JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?"
@@ -197,12 +203,12 @@ public class ActivateUserHandler implements HttpHandler {
             profile.put("email", email);
             profile.put("role_name", roleName);
 
-            ResponseUtil.sendSuccess(exchange, "Account activated successfully", Map.of("user", profile));
-            logger.info("User {} activated", userId);
+            ResponseUtil.sendSuccess(exchange, "Password reset successful", Map.of("user", profile));
+            logger.info("User {} password reset and logged in", userId);
 
         } catch (Exception e) {
-            logger.error("Activation failed", e);
-            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, "Activation failed");
+            logger.error("Password reset failed", e);
+            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, "Password reset failed");
         }
     }
 }

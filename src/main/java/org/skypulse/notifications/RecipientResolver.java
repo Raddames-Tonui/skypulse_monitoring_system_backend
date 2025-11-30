@@ -30,8 +30,8 @@ public class RecipientResolver {
             case "USER_CREATED", "RESET_PASSWORD" ->
                     resolveUserCreatedOrReset(conn, payloadUserId);
 
-            case "UPTIME_REPORTS" ->
-                    resolveUptimeReportEmails(conn);
+            case "UPTIME_REPORTS", "SERVICE_DOWN", "SERVICE_RECOVERED", "SSL_EXPIRING" ->
+                    resolveServiceNotificationContacts(conn, serviceId);
 
             default ->
                     resolveServiceNotificationContacts(conn, serviceId);
@@ -69,36 +69,7 @@ public class RecipientResolver {
         }
     }
 
-    // UPTIME_REPORTS → send to all user_contacts (email only)
-    private static List<Recipient> resolveUptimeReportEmails(Connection conn) throws SQLException {
-
-        String sql = """
-            SELECT user_id, value
-            FROM user_contacts
-            WHERE UPPER(type) = 'EMAIL'
-              AND is_primary = TRUE
-        """;
-
-        List<Recipient> list = new ArrayList<>();
-
-        try (PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-
-            while (rs.next()) {
-                list.add(
-                        new Recipient(
-                                rs.getLong("user_id"),
-                                "EMAIL",
-                                rs.getString("value")
-                        )
-                );
-            }
-        }
-
-        return list;
-    }
-
-    // Default: SERVICE_DOWN, SERVICE_RECOVERED, SSL_EXPIRING, etc.
+    // All service notifications
     private static List<Recipient> resolveServiceNotificationContacts(Connection conn, long serviceId)
             throws SQLException {
 

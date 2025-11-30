@@ -225,7 +225,7 @@ CREATE TABLE notification_templates (
     storage_mode                VARCHAR(20) DEFAULT 'hybrid'
                                     CHECK (storage_mode IN ('database', 'filesystem', 'hybrid')),
     subject_template            TEXT NOT NULL,
-    body_template               TEXT NOT NULL,   -- telegram/SMS body (HTML or plain text)
+    body_template               TEXT,   -- telegram/SMS body (HTML or plain text)
     pdf_template                TEXT,            -- Optional: for PDF layouts
     include_pdf                 BOOLEAN DEFAULT FALSE,
     body_template_key           VARCHAR(200),    -- e.g. 'emails/service_down_v1.html'
