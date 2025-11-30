@@ -26,7 +26,7 @@ public class ActivateUserHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(ActivateUserHandler.class);
     private final ObjectMapper mapper = JsonUtil.mapper();
-    private final long REFRESH_TOKEN_TTL = 30L * 24 * 3600; // 30 days
+    private final long REFRESH_TOKEN_TTL = 30L * 24 * 3600;
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {

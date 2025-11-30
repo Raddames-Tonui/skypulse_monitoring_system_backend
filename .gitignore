@@ -42,3 +42,7 @@ build/
 
 tmp/logs/*.log
 logs/*.log
+
+
+config-sample.xml
+config.xml

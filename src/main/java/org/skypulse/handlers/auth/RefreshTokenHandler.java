@@ -50,7 +50,6 @@ public class RefreshTokenHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // Validate refresh token
             String sessionQuery = """
                 SELECT auth_session_id, user_id, jwt_id, expires_at, is_revoked
                 FROM auth_sessions
@@ -86,7 +85,6 @@ public class RefreshTokenHandler implements HttpHandler {
                 return;
             }
 
-            // Fetch user info
             String userQuery = """
                 SELECT u.user_email, u.uuid, r.role_name
                 FROM users u
@@ -111,12 +109,10 @@ public class RefreshTokenHandler implements HttpHandler {
                 }
             }
 
-            // Generate new access token
             String newAccessToken = JwtUtil.generateAccessTokenWithJti(
                     userUuid.toString(), email, roleName, ACCESS_TOKEN_TTL, jwtId
             );
 
-            // Rotate refresh token
             String newRefreshToken = TokenUtil.generateToken();
             Instant newExpiresAt = Instant.now().plusSeconds(REFRESH_TOKEN_TTL);
 
@@ -132,7 +128,6 @@ public class RefreshTokenHandler implements HttpHandler {
                 ps.executeUpdate();
             }
 
-            // Set cookie
             CookieImpl cookie = new CookieImpl("refreshToken", newRefreshToken);
             cookie.setHttpOnly(true);
             cookie.setSecure(true);

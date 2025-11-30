@@ -6,6 +6,7 @@ import io.undertow.UndertowOptions;
 import io.undertow.server.handlers.PathHandler;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.rest.base.CORSHandler;
+import org.skypulse.utils.security.KeyProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +36,7 @@ public class RestApiServer {
                     .addPrefixPath(BASE_REST_API_URL+"/users", Routes.users(cfg));
 
 
-
+            String frontendBaseUrl = KeyProvider.getFrontendBaseUrl();
 
 
             Undertow server = Undertow.builder()
@@ -46,7 +47,7 @@ public class RestApiServer {
                     .setIoThreads(cfg.server.ioThreads)
                     .setWorkerThreads(cfg.server.workerThreads)
                     .addHttpListener(cfg.server.port, cfg.server.host)
-                    .setHandler(new CORSHandler(pathHandler, "http://localhost:5173"))
+                    .setHandler(new CORSHandler(pathHandler, frontendBaseUrl))
                     .build();
 
 

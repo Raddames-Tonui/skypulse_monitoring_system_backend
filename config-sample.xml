@@ -22,7 +22,7 @@
         <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5435/skypulse_monitoring_system_database</jdbcUrl>
 
         <username  mode="TEXT">spadmin</username>
-        <password  mode="TEXT">skyp@lse!2020</password>
+        <password  mode="TEXT">skyp@ls!2020</password>
 
         <!-- SSL Fix -->
         <encrypt  mode="TEXT">false</encrypt>
@@ -57,7 +57,7 @@
             <smtpPort mode="TEXT">587</smtpPort>
             <useTLS mode="TEXT">true</useTLS>
             <username mode="TEXT">raddamestonui48@gmail.com</username>
-            <password mode="TEXT">ljii fucd iaxm zbmg</password>
+            <password mode="TEXT">rkut fmdv ofyh</password>
             <fromName mode="TEXT">SkyPulse Monitor</fromName>
             <fromAddress mode="TEXT">raddamestonui48@gmail.com</fromAddress>
             <connectionTimeout mode="TEXT">10000</connectionTimeout>
