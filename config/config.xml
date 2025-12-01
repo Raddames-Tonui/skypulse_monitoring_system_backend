@@ -2,12 +2,13 @@
 <configuration>
     <!--  Undertow Server Configuration -->
     <server>
-        <host mode="TEXT">localhost</host>
+        <host mode="TEXT">0.0.0.0</host>
         <port mode="TEXT">8000</port>
         <ioThreads mode="TEXT">10</ioThreads>
         <workerThreads mode="TEXT">100</workerThreads>
         <basePath mode="TEXT">/api/rest</basePath>
     </server>
+
 
     <!-- JWT-CONFIGURATION   -->
     <!--   accessToken = in Minutes    refreshToken = in Days -->
@@ -20,7 +21,7 @@
     <dataSource>
         <driverClassName mode="TEXT">org.postgresql.Driver</driverClassName>
 
-        <jdbcUrl>jdbc:postgresql://dpg-d4mcqufpm1nc73cr5mrg-a.oregon-postgres.render.com/skypulse_monitoring_system_database?user=spadmin&password=LoGgVDsWXAkzp3MkhTkFziIWYCjYwVWB&ssl=true&sslmode=require</jdbcUrl>
+        <jdbcUrl mode="TEXT">jdbc:postgresql://dpg-d4mcqufpm1nc73cr5mrg-a.oregon-postgres.render.com/skypulse_monitoring_system_database?user=spadmin&amp;password=LoGgVDsWXAkzp3MkhTkFziIWYCjYwVWB&amp;ssl=true&amp;sslmode=require</jdbcUrl>
 
         <username mode="TEXT">spadmin</username>
         <password mode="TEXT">skyp@ls!2020</password>

@@ -36,7 +36,7 @@ public class RestApiServer {
                     .addPrefixPath(BASE_REST_API_URL+"/users", Routes.users(cfg));
 
 
-            String frontendBaseUrl = KeyProvider.getFrontendBaseUrl();
+            String[] allowedOrigins = KeyProvider.getAllowedFrontendOrigins();
 
 
             Undertow server = Undertow.builder()
@@ -47,7 +47,7 @@ public class RestApiServer {
                     .setIoThreads(cfg.server.ioThreads)
                     .setWorkerThreads(cfg.server.workerThreads)
                     .addHttpListener(cfg.server.port, cfg.server.host)
-                    .setHandler(new CORSHandler(pathHandler, frontendBaseUrl))
+                    .setHandler(new CORSHandler(pathHandler, allowedOrigins))
                     .build();
 
 

@@ -17,16 +17,18 @@
     </jwtConfig>
 
     <!-- PostgresSQL Data Source Configuration -->
+    <!-- PostgresSQL Data Source Configuration -->
     <dataSource>
         <driverClassName mode="TEXT">org.postgresql.Driver</driverClassName>
+
         <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5435/skypulse_monitoring_system_database</jdbcUrl>
 
-        <username  mode="TEXT">spadmin</username>
-        <password  mode="TEXT">skyp@ls!2020</password>
+        <username mode="TEXT">spadmin</username>
+        <password mode="TEXT">skyp@lse!2020</password>
 
         <!-- SSL Fix -->
-        <encrypt  mode="TEXT">false</encrypt>
-        <trustServerCertificate  mode="TEXT">false</trustServerCertificate>
+        <encrypt mode="TEXT">false</encrypt>
+        <trustServerCertificate mode="TEXT">false</trustServerCertificate>
     </dataSource>
 
     <!-- HikariCP Connection Pool Configuration -->

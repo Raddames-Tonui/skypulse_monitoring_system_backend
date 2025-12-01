@@ -10,21 +10,33 @@ import io.undertow.util.HttpString;
 
 public class CORSHandler implements HttpHandler {
     private final HttpHandler next;
-    private final String allowedOrigin;
+    private final String[] allowedOrigins;
 
-    public CORSHandler(HttpHandler next, String allowedOrigin) {
+    public CORSHandler(HttpHandler next, String[] allowedOrigins) {
         this.next = next;
-        this.allowedOrigin = allowedOrigin;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
+        String origin = exchange.getRequestHeaders().getFirst("Origin");
+        boolean allowed = false;
 
-        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), allowedOrigin);
-//        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), "*");
-        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Credentials"), "true");
-        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Methods"), "GET, POST, OPTIONS, PUT, PATCH, DELETE");
-        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Headers"), "Authorization, AuthToken, RequestReference, Content-Type");
+        if (origin != null) {
+            for (String o : allowedOrigins) {
+                if (o.equalsIgnoreCase(origin)) {
+                    allowed = true;
+                    break;
+                }
+            }
+        }
+
+        if (allowed) {
+            exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), origin);
+            exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Credentials"), "true");
+            exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Methods"), "GET, POST, OPTIONS, PUT, PATCH, DELETE");
+            exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Headers"), "Authorization, AuthToken, RequestReference, Content-Type");
+        }
 
         if (exchange.getRequestMethod().equalToString("OPTIONS")) {
             exchange.setStatusCode(204);
@@ -36,4 +48,3 @@ public class CORSHandler implements HttpHandler {
         next.handleRequest(exchange);
     }
 }
-

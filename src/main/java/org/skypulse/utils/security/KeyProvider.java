@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   2. Initialize correct Logback (dev/prod)
  *   3. Provide ANY secret (JWT, API keys, DB overrides)
  *   4. Provide encryption key for SecureFieldCrypto
- *   5. Provide frontend base URL
+ *   5. Provide frontend base URL(s)
  * Priority for secret resolution:
  *     1. System environment variable
  *     2. .env file
@@ -28,9 +28,10 @@ public class KeyProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(KeyProvider.class);
 
-    private static final String ENV_MASTER_KEY      = "CONFIG_MASTER_KEY";
-    private static final String ENV_ENVIRONMENT     = "APP_ENV";
-    private static final String ENV_FRONTEND_BASE_URL = "FRONTEND_BASE_URL";
+    private static final String ENV_MASTER_KEY         = "CONFIG_MASTER_KEY";
+    private static final String ENV_ENVIRONMENT        = "APP_ENV";
+    private static final String ENV_FRONTEND_BASE_URL  = "FRONTEND_BASE_URL";
+    private static final String ENV_ALLOWED_ORIGINS    = "FRONTEND_ALLOWED_ORIGINS";
 
     private static volatile boolean initialized = false;
     private static String activeEnv = "PRODUCTION";
@@ -68,6 +69,7 @@ public class KeyProvider {
         }
     }
 
+    /** Generic secret getter */
     public static String get(String keyName) {
         if (!initialized) init();
 
@@ -113,6 +115,22 @@ public class KeyProvider {
         return value.trim();
     }
 
+    /** Returns an array of allowed frontend origins for CORS */
+    public static String[] getAllowedFrontendOrigins() {
+        if (!initialized) init();
+
+        String value = System.getenv(ENV_ALLOWED_ORIGINS);
+        if ((value == null || value.isBlank()) && dotenv != null) {
+            value = dotenv.get(ENV_ALLOWED_ORIGINS);
+        }
+
+        if (value == null || value.isBlank()) {
+            return new String[] { "http://localhost:5173", "https://skypulse-mss.netlify.app" };
+        }
+
+        return value.split("\\s*,\\s*");
+    }
+
     public static String getKeyFromFile(String filePath) {
         if (!initialized) init();
 
@@ -129,7 +147,9 @@ public class KeyProvider {
 
     public static boolean isDev() { return "DEVELOPMENT".equalsIgnoreCase(activeEnv); }
     public static boolean isProd() { return !"DEVELOPMENT".equalsIgnoreCase(activeEnv); }
-    public static String getEnvironment() { if (!initialized) init(); return activeEnv; }
+    public static String getEnvironment() {
+        if (!initialized) init(); return activeEnv;
+    }
 
     private static void loadLogback(String fileName) {
         try {
@@ -140,9 +160,12 @@ public class KeyProvider {
             configurator.setContext(ctx);
             configurator.doConfigure(KeyProvider.class.getClassLoader().getResourceAsStream(fileName));
 
-            StatusPrinter.printInCaseOfErrorsOrWarnings(ctx);
+            ctx.getStatusManager().getCopyOfStatusList().forEach(status -> System.out.println(status.toString()));
+
+            logger.info("Loaded Logback configuration: {}", fileName);
         } catch (Exception e) {
             System.err.println("ERROR loading logback: " + fileName + " → " + e.getMessage());
         }
     }
+
 }
