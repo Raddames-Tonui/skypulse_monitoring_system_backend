@@ -528,8 +528,4 @@ CREATE TABLE system_settings (
         FOREIGN KEY (changed_by) REFERENCES users(user_id)
 );
 
--- Ensure only one active version per key
-CREATE UNIQUE INDEX ux_system_settings_active
-ON system_settings(key);
-
 

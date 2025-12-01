@@ -27,12 +27,42 @@ ON CONFLICT (notification_channel_code) DO NOTHING;
 
 
 -- SYSTEM SETTINGS
-INSERT INTO system_settings (key, description, uptime_check_interval, uptime_retry_count, uptime_retry_delay, ssl_check_interval, ssl_alert_thresholds, notification_retry_count)
+INSERT INTO system_settings (
+    uptime_check_interval,
+    uptime_retry_count,
+    uptime_retry_delay,
+    sse_push_interval,
+
+    ssl_check_interval,
+    ssl_alert_thresholds,
+    ssl_retry_count,
+    ssl_retry_delay,
+
+    notification_check_interval,
+    notification_retry_count,
+    notification_cooldown_minutes,
+
+    version,
+    is_active,
+    changed_by
+)
 VALUES
-('uptime_check_interval','Interval in minutes between uptime checks',5,3,5,360,'30,14,7',5),
-('uptime_retry_count','Number of retries before marking service DOWN',5,3,5,360,'30,14,7',5),
-('uptime_retry_delay','Delay in seconds between retries',5,3,5,360,'30,14,7',5),
-('ssl_check_interval','Interval in minutes between SSL checks',5,3,5,360,'30,14,7',5),
-('ssl_alert_thresholds','Days before SSL expiry to alert',5,3,5,360,'30,14,7',5),
-('notification_retry_count','Retry attempts for failed notifications',5,3,5,360,'30,14,7',5)
-ON CONFLICT (key) DO NOTHING;
+(
+    300,       -- uptime_check_interval (5 min in seconds)
+    3,         -- uptime_retry_count
+    5,         -- uptime_retry_delay (seconds)
+    5,         -- sse_push_interval (seconds)
+
+    360,       -- ssl_check_interval (seconds)
+    '30,14,7', -- ssl_alert_thresholds
+    3,         -- ssl_retry_count
+    360,       -- ssl_retry_delay
+
+    300,       -- notification_check_interval (5 minutes)
+    5,         -- notification_retry_count
+    10,        -- notification_cooldown_minutes
+
+    1,         -- version
+    TRUE,      -- is_active
+    NULL       -- changed_by (no user yet)
+);
