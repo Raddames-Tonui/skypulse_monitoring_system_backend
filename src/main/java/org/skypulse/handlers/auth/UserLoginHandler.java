@@ -3,15 +3,15 @@ package org.skypulse.handlers.auth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.CookieImpl;
 import io.undertow.util.HttpString;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserLoginRequest;
 import org.skypulse.config.utils.XmlConfiguration;
-import org.skypulse.rest.auth.AuthMiddleware;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
+import org.skypulse.utils.security.CookieUtil;
+import org.skypulse.utils.security.JwtUtil;
 import org.skypulse.utils.security.PasswordUtil;
 import org.skypulse.utils.security.TokenUtil;
 import org.slf4j.Logger;
@@ -30,7 +30,7 @@ public class UserLoginHandler implements HttpHandler {
 
     public UserLoginHandler(XmlConfiguration cfg) {
         long accessToken = 15 * 60;        // default 15 min
-        long refreshToken = 30 * 24 * 3600; // default 30 days
+        long refreshToken = 30L * 24 * 3600; // default 30 days
 
         try { accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60; } catch (Exception ignored) {}
         try { refreshToken = Long.parseLong(cfg.jwtConfig.refreshToken) * 24 * 3600; } catch (Exception ignored) {}
@@ -49,8 +49,7 @@ public class UserLoginHandler implements HttpHandler {
             return;
         }
 
-        if (req.email == null || req.email.isBlank() ||
-                req.password == null || req.password.isBlank()) {
+        if (req.email == null || req.email.isBlank() || req.password == null || req.password.isBlank()) {
             ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Email and password are required");
             return;
         }
@@ -61,6 +60,7 @@ public class UserLoginHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
+            // 1. Fetch user
             String selectUser = """
                 SELECT user_id, uuid, password_hash, first_name, last_name, user_email, is_deleted, role_id
                 FROM users
@@ -97,12 +97,14 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
+            // 2. Verify password
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
                 logLoginFailure(conn, email, ipAddress, userAgent, "Invalid credentials");
                 ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Invalid credentials");
                 return;
             }
 
+            // 3. Get role name
             String roleName = "";
             if (roleId != null) {
                 try (PreparedStatement ps = conn.prepareStatement("SELECT role_name FROM roles WHERE role_id = ?")) {
@@ -114,9 +116,12 @@ public class UserLoginHandler implements HttpHandler {
             }
 
             Instant now = Instant.now();
+
+            // 4. Generate refresh token
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
 
+            // 5. Insert auth session
             String insertAuth = """
                 INSERT INTO auth_sessions
                 (user_id, refresh_token_hash, jwt_id, issued_at, expires_at, last_used_at, login_time, ip_address, user_agent, device_name, session_status)
@@ -146,13 +151,17 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            AuthMiddleware.getUserByUuid(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL);
-
+            // 6. Set refresh token cookie
+            boolean isSecure = exchange.getRequestHeaders().getFirst("HOST").startsWith("localhost") ? false : true;
             exchange.getResponseHeaders().add(HttpString.tryFromString("Set-Cookie"),
                     String.format("refreshToken=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax",
                             refreshToken, (int) REFRESH_TOKEN_TTL)
             );
 
+            // 7. Set access token cookie using CookieUtil
+            CookieUtil.setAccessTokenCookie(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL, isSecure);
+
+            // 8. Send response
             Map<String, Object> profile = new HashMap<>();
             profile.put("uuid", userUuid);
             profile.put("full_name", firstName + " " + lastName);

@@ -2,13 +2,12 @@ package org.skypulse.handlers.auth;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.CookieImpl;
-import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
-import org.skypulse.utils.security.JwtUtil;
-import org.skypulse.utils.security.TokenUtil;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.utils.ResponseUtil;
+import org.skypulse.utils.security.CookieUtil;
+import org.skypulse.utils.security.JwtUtil;
+import org.skypulse.utils.security.TokenUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,9 +38,9 @@ public class RefreshTokenHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        CookieImpl refreshCookie = (CookieImpl) exchange.getRequestCookie("refreshToken");
+        var refreshCookie = exchange.getRequestCookie("refreshToken");
         if (refreshCookie == null || refreshCookie.getValue().isBlank()) {
-            ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Refresh token missing or invalid");
+            ResponseUtil.sendError(exchange, 401, "Refresh token missing or invalid");
             return;
         }
 
@@ -72,8 +71,7 @@ public class RefreshTokenHandler implements HttpHandler {
                     userId = rs.getLong("user_id");
                     jwtId = (UUID) rs.getObject("jwt_id");
                     expiresAt = rs.getTimestamp("expires_at").toInstant();
-                    boolean revoked = rs.getBoolean("is_revoked");
-                    if (revoked) {
+                    if (rs.getBoolean("is_revoked")) {
                         ResponseUtil.sendError(exchange, 401, "Refresh token revoked");
                         return;
                     }
@@ -100,7 +98,7 @@ public class RefreshTokenHandler implements HttpHandler {
                 ps.setLong(1, userId);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
-                        ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "User not found");
+                        ResponseUtil.sendError(exchange, 401, "User not found");
                         return;
                     }
                     email = rs.getString("user_email");
@@ -112,7 +110,6 @@ public class RefreshTokenHandler implements HttpHandler {
             String newAccessToken = JwtUtil.generateAccessTokenWithJti(
                     userUuid.toString(), email, roleName, ACCESS_TOKEN_TTL, jwtId
             );
-
             String newRefreshToken = TokenUtil.generateToken();
             Instant newExpiresAt = Instant.now().plusSeconds(REFRESH_TOKEN_TTL);
 
@@ -128,12 +125,10 @@ public class RefreshTokenHandler implements HttpHandler {
                 ps.executeUpdate();
             }
 
-            CookieImpl cookie = new CookieImpl("refreshToken", newRefreshToken);
-            cookie.setHttpOnly(true);
-            cookie.setSecure(true);
-            cookie.setPath("/");
-            cookie.setMaxAge((int) REFRESH_TOKEN_TTL);
-            exchange.setResponseCookie(cookie);
+            boolean isSecure = exchange.getRequestScheme().equalsIgnoreCase("https");
+
+            CookieUtil.setAccessTokenCookie(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL, isSecure);
+            CookieUtil.setRefreshTokenCookie(exchange, newRefreshToken, REFRESH_TOKEN_TTL, isSecure);
 
             ResponseUtil.sendSuccess(exchange, "Token refreshed", Map.of(
                     "accessToken", newAccessToken,

@@ -2,10 +2,9 @@ package org.skypulse.handlers.auth;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.Cookie;
-import io.undertow.server.handlers.CookieImpl;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.utils.ResponseUtil;
+import org.skypulse.utils.security.CookieUtil;
 import org.skypulse.utils.security.TokenUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,33 +24,29 @@ public class LogoutHandler implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange exchange) {
         try {
-            Cookie refreshCookie = exchange.getRequestCookie("refreshToken");
-            if (refreshCookie == null || refreshCookie.getValue() == null || refreshCookie.getValue().isBlank()) {
-                clearRefreshCookie(exchange);
-                clearAccessCookie(exchange);
+            String refreshToken = getRefreshToken(exchange);
+            if (refreshToken == null) {
+                clearCookies(exchange);
                 ResponseUtil.sendSuccess(exchange, "Already logged out", null);
                 return;
             }
 
-            final String refreshToken = refreshCookie.getValue();
-            final String refreshTokenHash = TokenUtil.hashToken(refreshToken);
-
+            String refreshTokenHash = TokenUtil.hashToken(refreshToken);
             logger.info("Received refresh token hash: {}", refreshTokenHash);
 
             try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
-                final String selectSql = """
+                UUID sessionId = null;
+                boolean isRevoked = false;
+
+                String selectSql = """
                         SELECT auth_session_id, is_revoked, expires_at
                         FROM auth_sessions
                         WHERE refresh_token_hash = ?
                           AND session_status = 'active'
-                    """;
-
-                UUID sessionId = null;
-                boolean isRevoked = false;
+                        """;
 
                 try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
                     ps.setString(1, refreshTokenHash);
-
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next()) {
                             sessionId = (UUID) rs.getObject("auth_session_id");
@@ -66,15 +61,13 @@ public class LogoutHandler implements HttpHandler {
                 }
 
                 if (sessionId == null) {
-                    clearRefreshCookie(exchange);
-                    clearAccessCookie(exchange);
+                    clearCookies(exchange);
                     ResponseUtil.sendSuccess(exchange, "Already logged out", null);
                     return;
                 }
 
-                // Revoke session if not already revoked ---
                 if (!isRevoked) {
-                    final String updateSql = """
+                    String updateSql = """
                             UPDATE auth_sessions
                             SET is_revoked = TRUE,
                                 revoked_at = NOW(),
@@ -82,16 +75,14 @@ public class LogoutHandler implements HttpHandler {
                                 session_status = 'revoked',
                                 date_modified = NOW()
                             WHERE auth_session_id = ?
-                        """;
-
+                            """;
                     try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
                         ps.setObject(1, sessionId);
                         ps.executeUpdate();
                     }
                 }
 
-                clearRefreshCookie(exchange);
-                clearAccessCookie(exchange);
+                clearCookies(exchange);
                 ResponseUtil.sendSuccess(exchange, "Logged out successfully", null);
             }
 
@@ -101,21 +92,17 @@ public class LogoutHandler implements HttpHandler {
         }
     }
 
-    private void clearRefreshCookie(HttpServerExchange exchange) {
-        CookieImpl clear = new CookieImpl("refreshToken", "");
-        clear.setPath("/");
-        clear.setHttpOnly(true);
-        clear.setSecure(true);
-        clear.setMaxAge(0);
-        exchange.setResponseCookie(clear);
+    private String getRefreshToken(HttpServerExchange exchange) {
+        if (exchange.getRequestCookie("refreshToken") != null) {
+            String token = exchange.getRequestCookie("refreshToken").getValue();
+            if (token != null && !token.isBlank()) return token;
+        }
+        return null;
     }
 
-    private void clearAccessCookie(HttpServerExchange exchange) {
-        CookieImpl clear = new CookieImpl("accessToken", "");
-        clear.setPath("/");
-        clear.setHttpOnly(true);
-        clear.setSecure(true);
-        clear.setMaxAge(0);
-        exchange.setResponseCookie(clear);
+    private void clearCookies(HttpServerExchange exchange) {
+        boolean isSecure = exchange.getRequestScheme().equalsIgnoreCase("https");
+        CookieUtil.setRefreshTokenCookie(exchange, "", 0, isSecure);
+        CookieUtil.setAccessTokenCookie(exchange, UUID.randomUUID(), UUID.randomUUID(), "", "", 0, isSecure);
     }
 }
