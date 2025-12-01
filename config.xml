@@ -2,12 +2,13 @@
 <configuration>
     <!--  Undertow Server Configuration -->
     <server>
-        <host mode="TEXT">localhost</host>
+        <host mode="TEXT">0.0.0.0</host>
         <port mode="TEXT">8000</port>
         <ioThreads mode="TEXT">10</ioThreads>
         <workerThreads mode="TEXT">100</workerThreads>
         <basePath mode="TEXT">/api/rest</basePath>
     </server>
+
 
     <!-- JWT-CONFIGURATION   -->
     <!--   accessToken = in Minutes    refreshToken = in Days -->
