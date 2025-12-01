@@ -54,7 +54,7 @@ public class Routes {
         long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
 
         return Handlers.routing()
-                .get("/health", secure(new HealthCheckHandler(), accessToken))
+                .get("/health", open(new HealthCheckHandler()))
                 .get("/tasks/reload", secure(build(new TaskController(appScheduler)), accessToken))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));

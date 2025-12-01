@@ -13,14 +13,16 @@ public class EmailSender implements NotificationSender {
 
     private static final Logger logger = LoggerFactory.getLogger(EmailSender.class);
 
+    // SMTP Configuration
     private static final String SMTP_HOST = "smtp.gmail.com";
     private static final int SMTP_PORT = 587;
     private static final String USERNAME = "raddamestonui48@gmail.com";
     private static final String PASSWORD = "vnfo ksqp tiou byht";
     private static final String FROM_ADDRESS = "raddamestonui48@gmail.com";
     private static final String FROM_NAME = "Skypulse Test";
+
     private static final boolean USE_TLS = true;
-    private static final int TIMEOUT_MS = 10000;
+    private static final int TIMEOUT_MS = 50000;
 
     private final Session session;
 
@@ -43,7 +45,7 @@ public class EmailSender implements NotificationSender {
         });
 
         this.session.setDebug(true);
-        logger.info("[---------- EmailSender initialized for host {}:{} ----------]", SMTP_HOST, SMTP_PORT);
+        logger.info("[ EmailSender initialized for host {}:{}]", SMTP_HOST, SMTP_PORT);
     }
 
     @Override
@@ -51,22 +53,24 @@ public class EmailSender implements NotificationSender {
         if (!"EMAIL".equalsIgnoreCase(channelCode)) return false;
 
         try {
-            Message msg = new MimeMessage(session);
+            MimeMessage msg = new MimeMessage(session);
             msg.setFrom(new InternetAddress(FROM_ADDRESS, FROM_NAME));
             msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(destination));
             msg.setSubject(subject);
 
             Multipart multipart = EmailHelper.buildHtmlWithInlineImages(message, inlineImages);
             msg.setContent(multipart);
+            msg.saveChanges();
 
             Transport.send(msg);
             logger.info("Email sent successfully to {}", destination);
             return true;
+
         } catch (MessagingException e) {
-            logger.error("Failed to send email to {} via SMTP host {}:{}", destination, SMTP_HOST, SMTP_PORT, e);
+            logger.error("Failed to send email to {} via SMTP host {}:{} - {}", destination, SMTP_HOST, SMTP_PORT, e.getMessage(), e);
             return false;
         } catch (Exception e) {
-            logger.error("Unexpected error while sending email to {}", destination, e);
+            logger.error("Unexpected error while sending email to {}: {}", destination, e.getMessage(), e);
             return false;
         }
     }

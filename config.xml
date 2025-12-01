@@ -1,87 +1,85 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<configuration>
+<?xml version="1.0" encoding="UTF-8"?><configuration>
     <!--  Undertow Server Configuration -->
     <server>
-        <host mode="TEXT">0.0.0.0</host>
-        <port>8000</port>
-        <ioThreads mode="TEXT">10</ioThreads>
-        <workerThreads mode="TEXT">100</workerThreads>
-        <basePath mode="TEXT">/api/rest</basePath>
+        <host mode="ENCRYPTED">v1:gcm:pbkdf2:6CHJ+JA0KNjCjrkKkwbHHg:4kZaZJFG3PhARl0d:FwKKCwYoeXAGX8KzgWdOci1o4kdKkKTwAA</host>
+        <port mode="ENCRYPTED">v1:gcm:pbkdf2:B3owQgmT+SqxYA5jckkfXw:hb6EBT8BKvUZvKEL:cT3xuk86VskxUoIjdKyzl6Tz23w</port>
+        <ioThreads mode="ENCRYPTED">v1:gcm:pbkdf2:n43Byt2g5yKoO/Ml74dOmA:5ycTGnWhqnUS+fh2:c5SZ6FsJmg+sSnrqvQCrwTHW</ioThreads>
+        <workerThreads mode="ENCRYPTED">v1:gcm:pbkdf2:2boGIA8YO+MUDfIJrG2bKQ:Xk0WpUbPiV9UwaKR:KqP6R+6obYmHp7hbU2+AJ09v2g</workerThreads>
+        <basePath mode="ENCRYPTED">v1:gcm:pbkdf2:lC9diMQexqH1FpD8Ag9arw:7+DRHOI3S/RyzhkH:WH8VCp7yT6HptW3828Cj6o7v88lHk8oatQ</basePath>
     </server>
-
 
     <!-- JWT-CONFIGURATION   -->
     <!--   accessToken = in Minutes    refreshToken = in Days -->
     <jwtConfig>
-        <accessToken mode="TEXT">60</accessToken>
-        <refreshToken mode="TEXT">30</refreshToken>
+        <accessToken mode="ENCRYPTED">v1:gcm:pbkdf2:SMUav0sFxN6Q+SFAdWufsw:vccFA3lww71rkEWX:zMN8pbwmpUPVQDtIwNRVmo4o</accessToken>
+        <refreshToken mode="ENCRYPTED">v1:gcm:pbkdf2:CBZr//MMpDghnkmT8PjiXA:ZSmEPqdOM4ZkD4le:Bvx59pYbBnRC8sW67PXn47us</refreshToken>
     </jwtConfig>
 
     <!-- PostgresSQL Data Source Configuration -->
     <dataSource>
-        <driverClassName>org.postgresql.Driver</driverClassName>
-        <jdbcUrl>jdbc:postgresql://dpg-d4mcqufpm1nc73cr5mrg-a.oregon-postgres.render.com:5432/skypulse_monitoring_system_database?sslmode=require</jdbcUrl>
+        <driverClassName mode="ENCRYPTED">v1:gcm:pbkdf2:pYWAhWZNp7/0eWNO/6A/Ww:VjGkOcCb2hCSolGy:ZqAxzUZeVMi+D1ga9ef1sOtdkrwCM6WgOtngO29nU8Wkm5IQHg</driverClassName>
+        <jdbcUrl mode="ENCRYPTED">v1:gcm:pbkdf2:VQg/oUrRlHZGaV/TesYoug:yJwQuyg3Z4ZTyNpb:q05EVUY0QFDBP3wboMA5pf5TWOzQHEvzVjGuOTcQySBSMz48fWwIcljGPrjgi9Q0Gtxc0yOTMLGYiXWtfwjJYJBUtRInNf11etk9s9QOWypIt25J</jdbcUrl>
 
-        <username  mode="TEXT">spadmin</username>
-        <password  mode="TEXT">LoGgVDsWXAkzp3MkhTkFziIWYCjYwVWB</password>
+        <username mode="ENCRYPTED">v1:gcm:pbkdf2:2yF/Tys18v3+CBHSS2gMyQ:dL0epMnKM3QRI8vR:SXwlwNA5hH90WQol0yZPzIpfnhtkIjg</username>
+        <password mode="ENCRYPTED">v1:gcm:pbkdf2:J9XUZPX3dWMTHrY47ZRcEg:dhVtS1JH3RivLw2D:dgv8dULbF+VvDT5vaalOJdK4x7EA/ObYFaZmaA</password>
 
         <!-- SSL Fix -->
-        <encrypt>true</encrypt>
-        <trustServerCertificate>false</trustServerCertificate>
+        <encrypt mode="ENCRYPTED">v1:gcm:pbkdf2:yWIdrVP1oXELgbUq/fHZOQ:5j6nRkFckLqNWVlY:HeDnC+mtxt+k5/xgql9iRvAOU/kw</encrypt>
+        <trustServerCertificate mode="ENCRYPTED">v1:gcm:pbkdf2:Tmx/+Qjai6hKle4BVBl0eQ:hxLJuYgmYK372Fzm:72fYae9awvzTAPmmtN7E4laaOz3Y</trustServerCertificate>
     </dataSource>
 
     <!-- HikariCP Connection Pool Configuration -->
     <!--  pool size ≈ (CPU cores × 2) + effective DB parallelism -->
     <connectionPool>
-        <maximumPoolSize mode="TEXT">10</maximumPoolSize>
-        <minimumIdle mode="TEXT" >3</minimumIdle>
-        <idleTimeout mode="TEXT">60000</idleTimeout>
-        <connectionTimeout mode="TEXT">30000</connectionTimeout>
-        <maxLifetime mode="TEXT">1800000</maxLifetime>
+        <maximumPoolSize mode="ENCRYPTED">v1:gcm:pbkdf2:UHRctcHM75x5iCwJ+Fp8EA:qPlh6pVIHbQARX+q:/Jzb/WVME4fnS5pRP7j67r0h</maximumPoolSize>
+        <minimumIdle mode="ENCRYPTED">v1:gcm:pbkdf2:Gkec9+TCQZR2HUPDo/hPtg:a/Ny1g2QOgr4yoIa:+rI1a3hGHgzxAY6Nz8zdJWI</minimumIdle>
+        <idleTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:9boooXkCWryTYpRowLkHjQ:Kk9EMjSseQvwptkD:XyPsdDMJKnCrlZ/epgB1Mp5pbixR</idleTimeout>
+        <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:w+BfBLugiBNkqSQFPROrQQ:IuluD8v2qTeKitEr:evwrZBFLSC9EXo1dO8FeXzl7W+Wv</connectionTimeout>
+        <maxLifetime mode="ENCRYPTED">v1:gcm:pbkdf2:1wXYGuKdvyrh9/9/ix4PdA:Hex02En3ucfB1zM1:qu9x104nMsTuHq3dMeXjL3ow3lLBYXw</maxLifetime>
     </connectionPool>
 
     <!-- Logging -->
     <logging>
-        <level  mode="TEXT">INFO</level>
-        <logFile  mode="TEXT">logs/skypulse-db.log</logFile>
+        <level mode="ENCRYPTED">v1:gcm:pbkdf2:aNe/VFtT89+CMB8vl57/8A:qY7I5HXinhQMDDi7:gXrDOnUIhaDRIqUS26sss9Zer1w</level>
+        <logFile mode="ENCRYPTED">v1:gcm:pbkdf2:O/GKvzYm4IkateuWIuNrcw:vVC8Zt3qnJ8b11+u:6RdjDTLFOLU+cA/lYIJKQbfAuKQDkpl24Hn3ui8UT/GIxLl5</logFile>
     </logging>
 
     <!-- Notification Channels    -->
     <notification enabled="true">
 
         <threads>
-            <workerThreads mode="TEXT">10</workerThreads>
+            <workerThreads mode="ENCRYPTED">v1:gcm:pbkdf2:LqmshzkNtf0vG9+eSSLrfA:CSmRmiiu1fX/8jzm:OdTwc4/77kTfzNMBsSGlVO1s</workerThreads>
         </threads>
 
         <email>
             <smtpHost>smtp.gmail.com</smtpHost>
-            <smtpPort mode="TEXT">587</smtpPort>
-            <useTLS mode="TEXT">true</useTLS>
-            <username mode="TEXT">raddamestonui48@gmail.com</username>
-            <password mode="TEXT">vnfo ksqp tiou byht</password>
-            <fromName>SkyPulse Monitor</fromName>
-            <fromAddress mode="TEXT">raddamestonui48@gmail.com</fromAddress>
-            <connectionTimeout mode="TEXT">10000</connectionTimeout>
-            <retryAttempts mode="TEXT">3</retryAttempts>
+            <smtpPort mode="ENCRYPTED">v1:gcm:pbkdf2:YZ3bQ8EqPlCYIC8uQe9keg:N950PKsoN/Kq7ntQ:QkM2008M+LyJ35iaJL4xPbKRyQ</smtpPort>
+            <useTLS mode="ENCRYPTED">v1:gcm:pbkdf2:Yk04m9W8iNr0ERnWhBgD2Q:XXpNei9YXDbCYhzd:TgbROV2OlFtAH4UlqzxvMOpxiIY</useTLS>
+            <username mode="ENCRYPTED">v1:gcm:pbkdf2:Vx+L95l21LfHQeKvNKn0Xw:tqxPHA/dLJNQuLgX:XTcQpQGIedAW4SLgirbR9q3TA+ykRMcWKaMmnF8L1JqSBQKVK9qzDbM</username>
+            <password mode="ENCRYPTED">v1:gcm:pbkdf2:yEvOg6POARBYbqaW9T+SCg:dY7nlr8e8AsuUWae:ZO7PpKhZlxexraFOKOIVmUZrbuT6NfHxzIkonzMF</password>
+            <fromName mode="ENCRYPTED">v1:gcm:pbkdf2:JiURs7K7tocztfGF78wqSw:GcR3xbfdMXZxB3p8:P7P62/iXZRk/bTl7dPh3H229d9/UHP/C6JEniMSvXk4</fromName>
+            <fromAddress mode="ENCRYPTED">v1:gcm:pbkdf2:1fApuw7JuxW6ev7Z7NspMA:QobyMew1A3brPOB/:ovoTvojzwAocX91wr40f5Sb1hjtAvik3uXcfvHo2amhwpUGqEpeiVNE</fromAddress>
+            <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:KgDiDJ2XVX4sstmTRkmHww:BiJIyi57CbN9NvYy:772TrQeLlow2CkpVdgiRvDEOxfPM</connectionTimeout>
+            <retryAttempts mode="ENCRYPTED">v1:gcm:pbkdf2:8QAp0XowZh7i0lPIGFTojQ:GpRX19PiQFnHZDdf:iiPjhB8DI8NKdw3XjLy9M0M</retryAttempts>
         </email>
         <!-- Telegram Configuration -->
         <telegram enabled="true">
-            <botToken mode="TEXT">123456789:ABCDEF-your-bot-token</botToken>
-            <defaultChatId mode="TEXT">-1001234567890</defaultChatId>
-            <apiUrl mode="TEXT">https://api.telegram.org</apiUrl>
+            <botToken mode="ENCRYPTED">v1:gcm:pbkdf2:JovyopWZYym2tm3+hNYt3Q:HJN3vLa7Op8hXCtb:y+t9RJ+1GNZnUh3v/SQjnjfEBKgKVLH8qVkJBRGgUYvYnvyGZqs/W1I1+BHBcn0</botToken>
+            <defaultChatId mode="ENCRYPTED">v1:gcm:pbkdf2:AWm58cnxPEnJqoRPWOc8lA:JGM6q070z/Ejt7H2:WqzvwubJ6qevsLv/loW6SS6HcJTfTlFoyEpt5Ayl</defaultChatId>
+            <apiUrl mode="ENCRYPTED">v1:gcm:pbkdf2:cNX2yKE8pHgwzkzeavVWjQ:ORgpiqtfjZ5n5Sfx:yXXapwWPjp5wNlAW/haFnMxZhLVlWG9AxWENN1Dn/pVnUuAcYfSAIQ</apiUrl>
             <parseMode>HTML</parseMode>
-            <connectionTimeout mode="TEXT">5000</connectionTimeout>
+            <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:ZUr30zxftmkTd6vh489+lg:YS6kpaYF2boSVQPi:WXc0VI7hI6ijn61UOuF6qv/hUGk</connectionTimeout>
         </telegram>
 
         <!-- SMS Configuration (optional) -->
         <sms enabled="false">
-            <provider mode="TEXT">twilio</provider>
-            <accountSid mode="TEXT">ACxxxxxxxxxxxx</accountSid>
-            <authToken mode="TEXT">xxxxxxxxxxxx</authToken>
-            <senderNumber mode="TEXT">+12025550123</senderNumber>
-            <defaultCountryCode mode="TEXT">+254</defaultCountryCode>
-            <apiUrl mode="TEXT">https://api.twilio.com</apiUrl>
-            <maxRetries mode="TEXT">2</maxRetries>
+            <provider mode="ENCRYPTED">v1:gcm:pbkdf2:bVViw5+IIT/tvibnFqso7w:BFkHqdInyGKTT7Cy:ECxiwUhJXH9zioXjHD+3hm4EMPChaQ</provider>
+            <accountSid mode="ENCRYPTED">v1:gcm:pbkdf2:lz1D7hrNHNsJiYmToPdzLA:dXJ2xOKM2bOKu0/4:d52pg1UypVbpOoawWMx1e4IAEK8U83K+jSOTrRkB</accountSid>
+            <authToken mode="ENCRYPTED">v1:gcm:pbkdf2:kW8eJt2qb4WDhzwsfHUaCA:deYoar+Cw0G9eCiA:4ggk4L64NHlTwV3OiLQE1FBlirxc5PS2z1RdVw</authToken>
+            <senderNumber mode="ENCRYPTED">v1:gcm:pbkdf2:nhZX813BQdBmL31X4lJceg:NyoU0fBAxEN4gGKc:gGi4OnpuhGPskKoVPXYQ5JQhG+W2onS/1UtEXA</senderNumber>
+            <defaultCountryCode mode="ENCRYPTED">v1:gcm:pbkdf2:kyi7nEGeWkQOt4fiZTRCbQ:uqh1uNlottuqZ425:8UW7xC3Kjnm/9FLgm1Hh7Kl5DCE</defaultCountryCode>
+            <apiUrl mode="ENCRYPTED">v1:gcm:pbkdf2:/1tJV+hRedCcQLv/CKM2YQ:xr6zR1rDgrVK43U2:lavhB/SlfjfU/oFr2iGkEHw7m4HXKuz3saZUr7GyPWPTGOfy4Iw</apiUrl>
+            <maxRetries mode="ENCRYPTED">v1:gcm:pbkdf2:1d+c0dWJ1dl090UlkJbbJA:pxi2K68XxxA8oljU:C2VHycQdVhbJ2PLZhTvlda0</maxRetries>
         </sms>
     </notification>
 </configuration>
