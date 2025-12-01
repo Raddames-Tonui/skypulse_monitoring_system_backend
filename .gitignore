@@ -38,6 +38,7 @@ build/
 ### Mac OS ###
 .DS_Store
 
+.env
 
 
 tmp/logs/*.log

@@ -36,18 +36,18 @@ public class Main {
             String masterKey = KeyProvider.getEncryptionKey();
 
 
-            try {
-                boolean encryptedNow = ConfigEncryptor.encryptIfNeeded(configPath, masterKey);
-
-                if (encryptedNow) {
-                    logger.warn("Config file contained PLAINTEXT. Auto-encrypted successfully.");
-                } else {
-                    logger.debug("Config file already encrypted.");
-                }
-            } catch (Exception ex) {
-                logger.error("Failed during auto-encryption of config.xml: {}", ex.getMessage(), ex);
-                System.exit(2);
-            }
+//            try {
+//                boolean encryptedNow = ConfigEncryptor.encryptIfNeeded(configPath, masterKey);
+//
+//                if (encryptedNow) {
+//                    logger.warn("Config file contained PLAINTEXT. Auto-encrypted successfully.");
+//                } else {
+//                    logger.debug("Config file already encrypted.");
+//                }
+//            } catch (Exception ex) {
+//                logger.error("Failed during auto-encryption of config.xml: {}", ex.getMessage(), ex);
+//                System.exit(2);
+//            }
 
 
             XmlConfiguration cfg = ConfigLoader.loadConfig(configPath);
