@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.CookieImpl;
+import io.undertow.util.HttpString;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserLoginRequest;
@@ -147,12 +148,10 @@ public class UserLoginHandler implements HttpHandler {
 
             AuthMiddleware.getUserByUuid(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL);
 
-            CookieImpl refreshCookie = new CookieImpl("refreshToken", refreshToken);
-            refreshCookie.setHttpOnly(true);
-            refreshCookie.setSecure(true);
-            refreshCookie.setPath("/");
-            refreshCookie.setMaxAge((int) REFRESH_TOKEN_TTL);
-            exchange.setResponseCookie(refreshCookie);
+            exchange.getResponseHeaders().add(HttpString.tryFromString("Set-Cookie"),
+                    String.format("refreshToken=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax",
+                            refreshToken, (int) REFRESH_TOKEN_TTL)
+            );
 
             Map<String, Object> profile = new HashMap<>();
             profile.put("uuid", userUuid);

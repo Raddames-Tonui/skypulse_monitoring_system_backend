@@ -26,6 +26,17 @@ VALUES
 ON CONFLICT (notification_channel_code) DO NOTHING;
 
 
+INSERT INTO notification_templates (event_type, subject_template, body_template, body_template_key, storage_mode)
+VALUES
+('SERVICE_DOWN','Reset your password for - {{brand_name}}','<p>Service {{service_name}} is down.</p>','emails/service_down.html','hybrid'),
+('SERVICE_RECOVERED','Service Down Has Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/service_recovered.html','hybrid')
+('SSL_EXPIRED','SSL Expiry Warning:  - {{domain}}','<p>Service {{service_name}} has recovered.</p>','emails/ssl_expiry.html','hybrid')
+('USER_CREATED','User Registration','<p>Service {{service_name}} has recovered.</p>','emails/welcome_email.html','hybrid')
+('RESET_PASSWORD','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/reset_password.html','hybrid')
+ON CONFLICT DO NOTHING;
+
+
+
 -- SYSTEM SETTINGS
 INSERT INTO system_settings (
     uptime_check_interval,
