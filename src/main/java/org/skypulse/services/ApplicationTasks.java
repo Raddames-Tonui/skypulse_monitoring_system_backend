@@ -42,7 +42,8 @@ public class ApplicationTasks {
 
                     // 2. Register NOTIFICATION PROCESSOR TASK
                     MultiChannelSender sender = new MultiChannelSender();
-                    sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
+                    sender.addSender("EMAIL", new EmailSender());
+//                    sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
                     // sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
 
                     int workerThreads = 10;

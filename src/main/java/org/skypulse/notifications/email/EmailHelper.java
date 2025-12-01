@@ -30,8 +30,8 @@ public class EmailHelper {
         // 3. Add inline images
         if (inlineImages != null) {
             for (Map.Entry<String, String> entry : inlineImages.entrySet()) {
-                String cid = entry.getKey();   // e.g., "tatuaLogo"
-                String path = entry.getValue(); // e.g., "src/main/resources/images/tatua-logo.png"
+                String cid = entry.getKey();
+                String path = entry.getValue();
 
                 File file = new File(path);
                 if (!file.exists()) continue;
