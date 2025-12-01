@@ -1,19 +1,32 @@
-# Use a lightweight JDK 21 image
-FROM eclipse-temurin:21-jdk-jammy
 
-# Set working directory
+# 1. BUILD STAGE
+FROM maven:3.9.9-eclipse-temurin-21 AS build
+
 WORKDIR /app
 
-# Copy JAR, config, and .env
-COPY target/skypulse-monitoring-system-1.0-SNAPSHOT-shaded.jar .
-COPY config.xml .
-COPY .env .
+# Copy pom + source
+COPY pom.xml .
+COPY src ./src
 
-# Expose HTTP port (from your Undertow config)
-EXPOSE 8080
+# Build fat JAR using Maven Shade plugin
+RUN mvn -e -X -DskipTests clean package
 
-# Load .env variables
-# (optional if you want the container to read them at runtime)
-# Using 'sh' to export variables
-CMD export $(grep -v '^#' .env | xargs) && \
-    java -jar skypulse-monitoring-system-1.0-SNAPSHOT-shaded.jar config.xml
+
+# 2. RUNTIME STAGE
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+# Copy JAR from build stage
+COPY --from=build /app/target/skypulse-monitoring-system.jar app.jar
+
+# Copy config.xml (make sure it exists in repo root)
+COPY config.xml /app/config.xml
+
+# Expose Undertow port
+EXPOSE 7070
+
+# Ensures config.xml is passed as absolute path
+ENV CONFIG_FILE=/app/config.xml
+
+CMD ["java", "-jar", "/app/app.jar"]
