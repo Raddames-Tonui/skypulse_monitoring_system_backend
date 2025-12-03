@@ -1,4 +1,4 @@
-package org.skypulse.services.sse;
+8package org.skypulse.services.sse;
 
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.SystemSettings;
@@ -35,7 +35,7 @@ public class SseHealthCheckHandler extends SseHandler {
             systemDefaults = null;
         }
 
-        // Basic system info
+        
         response.put("app", "SkyPulse REST API");
         response.put("version", "1.0.0");
         response.put("environment", KeyProvider.getEnvironment());
