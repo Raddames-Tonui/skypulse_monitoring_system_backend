@@ -35,14 +35,12 @@ public class GenerateSslPdfReports implements HttpHandler {
             return;
         }
 
-        // ---------------- GET PARAMS ----------------
         String serviceIdParam = DatabaseUtils.getParam(exchange.getQueryParameters(), "service_id");
         String filterPeriod = DatabaseUtils.getParam(exchange.getQueryParameters(), "period");
         String statusFilter = DatabaseUtils.getParam(exchange.getQueryParameters(), "status");
         String downloadParam = DatabaseUtils.getParam(exchange.getQueryParameters(), "download");
         boolean forceDownload = "1".equals(downloadParam) || "true".equalsIgnoreCase(downloadParam);
 
-        // ---------------- PERIOD ----------------
         int days = 7;
         try {
             if (filterPeriod != null && !filterPeriod.isBlank()) {
@@ -54,7 +52,6 @@ public class GenerateSslPdfReports implements HttpHandler {
         }
 
         try {
-            // ---------------- SQL ----------------
             StringBuilder sql = new StringBuilder("""
                 SELECT
                     sl.domain,
@@ -63,7 +60,7 @@ public class GenerateSslPdfReports implements HttpHandler {
                     sl.expiry_date,
                     sl.public_key_algo,
                     sl.public_key_length,
-                    CASE 
+                    CASE
                         WHEN sl.days_remaining < 0 THEN 'EXPIRED'
                         WHEN sl.days_remaining <= 14 THEN 'EXPIRING SOON'
                         ELSE 'VALID'
@@ -92,7 +89,6 @@ public class GenerateSslPdfReports implements HttpHandler {
 
             List<String> rows = new ArrayList<>();
 
-            // ---------------- DB QUERY ----------------
             try (Connection conn = JdbcUtils.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql.toString())) {
 
@@ -127,7 +123,6 @@ public class GenerateSslPdfReports implements HttpHandler {
                 }
             }
 
-            // ---------------- TEMPLATE ----------------
             String html = loadHtmlTemplate()
                     .replace("{{DATE_ISSUED}}",
                             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
@@ -151,7 +146,6 @@ public class GenerateSslPdfReports implements HttpHandler {
                                     : String.join("\n", rows)
                     );
 
-            // ---------------- PDF GENERATION ----------------
             ByteArrayOutputStream output = new ByteArrayOutputStream();
 
             PdfRendererBuilder builder = new PdfRendererBuilder();
@@ -173,7 +167,6 @@ public class GenerateSslPdfReports implements HttpHandler {
 
             byte[] pdfBytes = output.toByteArray();
 
-            // ---------------- SEND PDF ----------------
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/pdf");
             exchange.getResponseHeaders().put(
                     Headers.CONTENT_DISPOSITION,

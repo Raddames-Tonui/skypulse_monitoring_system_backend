@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -30,6 +31,7 @@ public class GenerateUptimePdfReports implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) {
+
         if (exchange.isInIoThread()) {
             exchange.dispatch(this);
             return;
@@ -47,7 +49,9 @@ public class GenerateUptimePdfReports implements HttpHandler {
         }
 
         String serviceIdParam = DatabaseUtils.getParam(exchange.getQueryParameters(), "service_id");
-        Long serviceId = (serviceIdParam != null && !serviceIdParam.isBlank()) ? Long.parseLong(serviceIdParam) : null;
+        Long serviceId = (serviceIdParam != null && !serviceIdParam.isBlank())
+                ? Long.parseLong(serviceIdParam)
+                : null;
 
         String statusFilter = DatabaseUtils.getParam(exchange.getQueryParameters(), "status");
 
@@ -61,17 +65,24 @@ public class GenerateUptimePdfReports implements HttpHandler {
             List<String> rows = new ArrayList<>();
 
             StringBuilder sqlBuilder = new StringBuilder("""
-                SELECT ms.monitored_service_name, ul.status, ul.response_time_ms, 
-                       ul.http_status, ul.error_message, ul.checked_at
-                FROM monitored_services ms
-                LEFT JOIN uptime_logs ul ON ms.monitored_service_id = ul.monitored_service_id
+                SELECT 
+                    ms.monitored_service_name,
+                    ul.status,
+                    ul.response_time_ms,
+                    ul.http_status,
+                    ul.error_message,
+                    ul.checked_at
+                FROM uptime_logs ul
+                INNER JOIN monitored_services ms 
+                       ON ms.monitored_service_id = ul.monitored_service_id
                 WHERE ul.checked_at >= NOW() - (? || ' days')::interval
             """);
 
             if (serviceId != null) sqlBuilder.append(" AND ms.monitored_service_id = ?");
             if (statusFilter != null && !statusFilter.isBlank()) sqlBuilder.append(" AND ul.status = ?");
 
-            sqlBuilder.append(" ORDER BY ul.checked_at ASC");
+            sqlBuilder.append(" ORDER BY ul.checked_at DESC"); // newest first
+
             String sql = sqlBuilder.toString();
 
             try (Connection conn = JdbcUtils.getConnection();
@@ -79,51 +90,71 @@ public class GenerateUptimePdfReports implements HttpHandler {
 
                 int index = 1;
                 ps.setInt(index++, days);
+
                 if (serviceId != null) ps.setLong(index++, serviceId);
-                if (statusFilter != null && !statusFilter.isBlank()) ps.setString(index, statusFilter.toUpperCase());
+                if (statusFilter != null && !statusFilter.isBlank())
+                    ps.setString(index, statusFilter.toUpperCase());
+
+                DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+                int counter = 1;
 
                 try (ResultSet rs = ps.executeQuery()) {
-                    DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
                     while (rs.next()) {
+
                         String status = rs.getString("status");
 
                         String row = String.format("""
                             <tr>
+                              <td class="center">%d</td>
                               <td>%s</td>
                               <td class="%s">%s</td>
                               <td class="center">%s</td>
                               <td class="center">%s</td>
                               <td>%s</td>
+                              <td>%s</td>
                             </tr>
                         """,
-                                rs.getTimestamp("checked_at") != null
-                                        ? rs.getTimestamp("checked_at").toLocalDateTime().format(df)
-                                        : "-",
+                                counter++,
+                                rs.getString("monitored_service_name"),
                                 "UP".equalsIgnoreCase(status) ? "up" : "down",
                                 status != null ? status : "-",
                                 rs.getObject("response_time_ms") != null ? rs.getInt("response_time_ms") : "-",
                                 rs.getObject("http_status") != null ? rs.getInt("http_status") : "-",
+                                rs.getTimestamp("checked_at") != null
+                                        ? rs.getTimestamp("checked_at").toLocalDateTime().format(df)
+                                        : "-",
                                 rs.getString("error_message") != null ? rs.getString("error_message") : "-"
                         );
+
                         rows.add(row);
                     }
                 }
             }
 
             StringBuilder filtersHtml = new StringBuilder("<ul style='list-style: none; padding: 0;'>");
+
             filtersHtml.append("<li><strong>Period:</strong> ").append(days).append(" day(s)</li>");
-            if (serviceId != null) filtersHtml.append("<li><strong>Service ID:</strong> ").append(serviceId).append("</li>");
-            if (statusFilter != null && !statusFilter.isBlank())
-                filtersHtml.append("<li><strong>Status:</strong> ").append(statusFilter.toUpperCase()).append("</li>");
+            filtersHtml.append("<li><strong>Service ID:</strong> ").append(
+                    serviceId != null ? serviceId : "All"
+            ).append("</li>");
+            filtersHtml.append("<li><strong>Status:</strong> ").append(
+                    statusFilter != null && !statusFilter.isBlank()
+                            ? statusFilter.toUpperCase()
+                            : "All"
+            ).append("</li>");
+
             filtersHtml.append("</ul>");
 
             String html = loadHtmlTemplate()
-                    .replace("{{DATE_ISSUED}}", LocalDateTime.now()
-                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                    .replace("{{DATE_ISSUED}}",
+                            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                    )
                     .replace("{{UPTIME_ROWS}}",
-                            rows.isEmpty() ? "<tr><td colspan='5'>No records found</td></tr>"
-                                    : String.join("\n", rows))
+                            rows.isEmpty()
+                                    ? "<tr><td colspan='7' style='text-align:center'>No records found</td></tr>"
+                                    : String.join("\n", rows)
+                    )
                     .replace("{{FILTERS_APPLIED}}", filtersHtml.toString());
 
             ByteArrayOutputStream pdfStream = new ByteArrayOutputStream();
@@ -172,7 +203,9 @@ public class GenerateUptimePdfReports implements HttpHandler {
     }
 
     private String loadHtmlTemplate() throws Exception {
-        try (var is = getClass().getClassLoader().getResourceAsStream("templates/pdf/uptime-report.html")) {
+        try (var is = getClass().getClassLoader()
+                .getResourceAsStream("templates/pdf/uptime-report.html")) {
+
             if (is == null) throw new RuntimeException("HTML template not found");
             return new String(is.readAllBytes());
         }

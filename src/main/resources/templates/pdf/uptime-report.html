@@ -3,10 +3,19 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>SSL Report</title>
+    <title>Uptime Report</title>
 
     <style type="text/css">
-        @page { size: A4 landscape; margin: 0.4in; }
+        @page {
+            size: A4 portrait;
+            margin: 0.4in;
+
+            @bottom-center {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 9pt;
+                color: #444;
+            }
+        }
 
         body {
             font-family: Arial, sans-serif;
@@ -15,10 +24,16 @@
             padding: 0;
         }
 
+        /* Header Table */
         .header {
             width: 100%;
             margin-bottom: 20px;
             border-bottom: 2px solid #004E6B;
+        }
+
+        .header td {
+            border: none; /* Remove borders around logo/title */
+            padding: 0;
         }
 
         .logo { width: 120px; }
@@ -42,19 +57,21 @@
 
         .filters { margin-bottom: 10px; }
 
-        table {
+        /* Data Table */
+        table.data-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
         }
 
-        th, td {
+        table.data-table th,
+        table.data-table td {
             border: 1px solid #D3D3D3;
             padding: 6px;
             text-align: left;
         }
 
-        th {
+        table.data-table th {
             background-color: #004E6B;
             color: white;
             font-weight: bold;
@@ -63,16 +80,12 @@
         td.center { text-align: center; }
 
         /* Status colors */
-        .valid {
+        .up {
             color: #0A7D00; /* green */
             font-weight: bold;
         }
-        .expired {
+        .down {
             color: #D22F2F; /* red */
-            font-weight: bold;
-        }
-        .expiring {
-            color: #BF8A00; /* amber */
             font-weight: bold;
         }
     </style>
@@ -84,7 +97,7 @@
 <table class="header">
     <tr>
         <td><img class="logo" src="images/skypulse_flavicon.png" alt="SkyPulse Logo" /></td>
-        <td class="title">SkyPulse SSL Report</td>
+        <td class="title">SkyPulse Uptime Report</td>
     </tr>
     <tr>
         <td colspan="2" class="date-issued">
@@ -93,29 +106,28 @@
     </tr>
 </table>
 
-<h1>SSL Certificate Report</h1>
+<h1>Uptime Monitoring Report</h1>
 
-<!-- Filters Applied -->
+<!-- Filters -->
 <div class="filters">
     <strong>Filters Applied:</strong> {{FILTERS_APPLIED}}
 </div>
 
-<!-- SSL Table -->
-<table>
+<!-- Data Table -->
+<table class="data-table">
     <thead>
     <tr>
-        <th>Domain</th>
+        <th>No.</th>
+        <th>Service Name</th>
         <th>Status</th>
-        <th>Expiration Date</th>
-        <th>Days Remaining</th>
-        <th>Issuer</th>
-        <th>Public Key Algo</th>
-        <th>Key Length</th>
-        <th>Fingerprint</th>
+        <th>Response Time (ms)</th>
+        <th>HTTP Status</th>
+        <th>Checked</th>
+        <th>Error</th>
     </tr>
     </thead>
     <tbody>
-    {{SSL_ROWS}}
+    {{UPTIME_ROWS}}
     </tbody>
 </table>
 

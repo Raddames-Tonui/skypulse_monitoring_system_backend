@@ -130,7 +130,7 @@ public class Routes {
         SseServiceStatusHandler sseServiceStatusHandler = new SseServiceStatusHandler();
 
         return Handlers.routing()
-                .get("/health", secure(sseHealthCheckHandler.getHandler(), accessToken))
+                .get("/health", open(sseHealthCheckHandler.getHandler()))
                 .get("/service-status", open(sseServiceStatusHandler.getHandler()))
                 .setInvalidMethodHandler(new Dispatcher(new InvalidMethod()))
                 .setFallbackHandler(new Dispatcher(new FallBack()));

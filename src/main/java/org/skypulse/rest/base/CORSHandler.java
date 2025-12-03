@@ -42,7 +42,6 @@ public class CORSHandler implements HttpHandler {
             exchange.getResponseHeaders().put(Headers.VARY, "Origin");
         }
 
-        // Preflight OPTIONS
         if (exchange.getRequestMethod().equalToString("OPTIONS")) {
             exchange.setStatusCode(allowed ? 204 : 403);
             exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, "0");
