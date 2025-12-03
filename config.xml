@@ -1,87 +1,86 @@
 <?xml version="1.0" encoding="UTF-8"?><configuration>
     <!--  Undertow Server Configuration -->
     <server>
-        <host mode="ENCRYPTED">v1:gcm:pbkdf2:MBH5lvUCVBN76lij2rzJTw:dL3cHI4mFLtECqzc:jW8xz/rjebhZKV5EYi32SZ27O8dyeog</host>
-        <port mode="ENCRYPTED">v1:gcm:pbkdf2:Td+5n4s0ddR/pYmNnMJRcg:nS6Ycpa7Bh34kXmF:bpPR6wfoDkX7W5ZZ4WoeOj62z1U</port>
-        <ioThreads mode="ENCRYPTED">v1:gcm:pbkdf2:i7uw9FhmvFPgVtnqv+66mA:v7OM5YkF5gDrQi5p:ZRXi7ft/9rHbV3VmQe6398G/</ioThreads>
-        <workerThreads mode="ENCRYPTED">v1:gcm:pbkdf2:L6rjUdRbcZsVXtCMTFTeaA:t/gsvTLZhevwu3Rs:d5Hv8KsmLHJDXmaPvH0y4QCdEQ</workerThreads>
-        <basePath mode="ENCRYPTED">v1:gcm:pbkdf2:dRxFApDe6NEnI+c/2Z7/sA:YG4h+o/Z+3qc1h3c:XX4DHsT6i6ZW4f0dlORpk7dtVJ25ZHKMBg</basePath>
+        <host mode="ENCRYPTED">v1:gcm:pbkdf2:g4vaxpk4EVZvrknJzqj4dQ:d3E9VYktLrpt68lO:IZzTBce9iIhSfoQN3lcCVEn0Xpa4sShZSw</host>
+        <port mode="ENCRYPTED">v1:gcm:pbkdf2:9pnatLrfj0ACB6c/Pa/X2Q:gMZfRX4rsFToZN0J:79hKWodtscwSnNwEFJMfLK2RGuA</port>
+        <ioThreads mode="ENCRYPTED">v1:gcm:pbkdf2:2VBBtiVneISK/Ty2K7PGwQ:/2aK7kCDfLYw2z1w:P2GF4qiK+4Dn6UV+/d1D5BtF</ioThreads>
+        <workerThreads mode="ENCRYPTED">v1:gcm:pbkdf2:4N9ZWqkMrT7x9kFyaFtYsQ:TQw2RibdXmDN3Ihp:vUbsszJYmPbSE0u0UiBQ42rOzQ</workerThreads>
+        <basePath mode="ENCRYPTED">v1:gcm:pbkdf2:aA68Q+GuadcPxghK2D72Yg:Grym4UVuGUc9o4Nl:IDu/uF6huYToL5vr/FrXq7pxV+6LhZyxjQ</basePath>
     </server>
-
 
     <!-- JWT-CONFIGURATION   -->
     <!--   accessToken = in Minutes    refreshToken = in Days -->
     <jwtConfig>
-        <accessToken mode="ENCRYPTED">v1:gcm:pbkdf2:JLZAu+mUscBeEBufy5vGcQ:T8p/xmL1+2uaacwh:rj7EdlqYK2aNsJbYV6CQK8H7</accessToken>
-        <refreshToken mode="ENCRYPTED">v1:gcm:pbkdf2:5oAYe1M9usn69mIfNQm00g:EUTmZfoNypK/7v56:ZsoCoyoUznPfamz9O4fQHxiY</refreshToken>
+        <accessToken mode="ENCRYPTED">v1:gcm:pbkdf2:HY8NdrqiFdaPc0epSkB/XA:99AF+mOUbp3DpJ9Y:9+ynCVNbLlc4WTAz34wf5idX</accessToken>
+        <refreshToken mode="ENCRYPTED">v1:gcm:pbkdf2:5lsQ0ntPn8xHT9ZKsslaEQ:S2BfjFovCL1eJTGi:syeczom/heK9Yh+S0hXqnFRd</refreshToken>
     </jwtConfig>
 
     <!-- PostgresSQL Data Source Configuration -->
     <dataSource>
-        <driverClassName mode="ENCRYPTED">v1:gcm:pbkdf2:Q03Bb5AxuAcqfGbTyKDC5A:rlVn2MzA+GRzhBVw:un6dz7NglylQlJ5VjfhcafgU8yN880X3ZnEsC7mp1MsKQvxN1A</driverClassName>
+        <driverClassName mode="ENCRYPTED">v1:gcm:pbkdf2:1LB37vhv4mtmR5LydrLnPA:y5G+Un+fulQJIci4:iopPoVGMCV9/JjDqb8pXJIz/aiddiKiQC1/LIO1Ib79fROUFig</driverClassName>
 
-        <jdbcUrl mode="ENCRYPTED">v1:gcm:pbkdf2:5M3a00c+iLVjLtpRQH/BuQ:C1VrnEZzCz6HDk54:VZRLwhDgKOqVoTdM6wnSekmEDF6QQPynQN2Crnd1qMzdF6gjJ+AC9Ixi9xWUx207AJpacmQGO/pnBVc3bThSl5Zor0u33zUZR/ELaaoU7ZnjEM88+2IxBJ0EQaUwOlCcufbzvipB9DHzolC3b6CwZQyuPbnkd0asV1yAutrQOKUyoiTkUmVAHrnbuhQJEUsKzHpG7ZdbeAnUrMn4K9dCTrtzNB8+54yb1FbQITel5pg9XOuzsro39vo1o9H3wYao8C+yE9ku70RNKKw</jdbcUrl>
+        <jdbcUrl mode="ENCRYPTED">v1:gcm:pbkdf2:Ne8Q1C3X/JI80fJ2pVrmAA:tedfcA5ChVF5uhVc:b7JwpKTCHRLef6ylfAcGIbrHJhR5HDZ/lK+Vl12LqFrbxyYBHVQ6r9dggQGP/fm2BfpJxtAGrVptcmJvo/a5NP8ZOhhpWQFQDFkFXc5dXcy6Z/sQ</jdbcUrl>
 
-        <username mode="ENCRYPTED">v1:gcm:pbkdf2:hdP5/sxMEuBLqVICX7ybyA:h3KCUzoMpRH88wgQ:ppshdQLUh9tioqI153rR9sbYOzVM</username>
-        <password mode="ENCRYPTED">v1:gcm:pbkdf2:fzOcgMpSuUAU6lkDajMzOw:cJo43HmwniUgeGuV:j4R4pWsGxD3GePtufn9z7SQ4jLdGZA09rL0PGFeobSgQ3OFCh+iYGlJtAKEzZs2i</password>
+        <username mode="ENCRYPTED">v1:gcm:pbkdf2:aMlHVyb+gdoEqQpcXJn4gw:XmYMNgBHYKmMvHb7:DlP67WkF3sRaiv9EGfK8SqQp/BhU1g4</username>
+        <password mode="ENCRYPTED">v1:gcm:pbkdf2:Nrr0mkxajgcWueoXWQsa+Q:LqtoRwxrvq9fThEn:frfD7+ua9y+on7gGVtF0gHrPsTjBVPBTIH825bg</password>
 
-        <encrypt mode="ENCRYPTED">v1:gcm:pbkdf2:RzivYYESFoC8HJ6D+8uqOA:4K+YceSm/2xzwlNq:rDYN/7PbfwWVhSOJ8FhONk6iGBXv</encrypt>
-        <trustServerCertificate mode="ENCRYPTED">v1:gcm:pbkdf2:Vy9bxSJNpkH996oyc077Bg:dCIPX4IsBeo7Nwa8:KI/9IaAihnkpzonTw52w9rUNwNVb</trustServerCertificate>
+        <!-- SSL Fix -->
+        <encrypt mode="ENCRYPTED">v1:gcm:pbkdf2:ODEB8NXpgmFhPeQIgkaKPg:eSBvq+czq6CgIl7m:NyMBp7okHeWzyrircQebTmat5NQt</encrypt>
+        <trustServerCertificate mode="ENCRYPTED">v1:gcm:pbkdf2:tnl/Phj694Ve7nvXAC4vjw:aEjDrst2pevmnCwc:7BE08i8ZXauW8OfAxYkWVm2MkWjv</trustServerCertificate>
     </dataSource>
-
 
     <!-- HikariCP Connection Pool Configuration -->
     <!--  pool size ≈ (CPU cores × 2) + effective DB parallelism -->
     <connectionPool>
-        <maximumPoolSize mode="ENCRYPTED">v1:gcm:pbkdf2:IQjPKM4gKua6G4Mar3ndOA:nb9ajLVn4TU6HS/T:jSeUvUUfaCg0h8/u0Kb9pecW</maximumPoolSize>
-        <minimumIdle mode="ENCRYPTED">v1:gcm:pbkdf2:LPlaTwKRkqkydZUQVhORbA:UyV29+6wryGjG256:X/RBPWhZPA3yWcRq88heKRM</minimumIdle>
-        <idleTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:Xh8fBWd7B51iVnbZjsLooQ:WXbYP9WQFBS4uNnp:KC/WhNP6CFZCqUVaG5uTVeMnE3RC</idleTimeout>
-        <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:Dn7ts9GtyOxtT/xV/NYCyw:oDR77B1NN8jwYtnJ:UdH2K1Coiy05grnomssG5is4s+Ds</connectionTimeout>
-        <maxLifetime mode="ENCRYPTED">v1:gcm:pbkdf2:Imz43luUCw6734SVezNHIg:hvg9cJQ2kw7j7z/l:q2MTpaEdoFa18Qf6pZlF7DQncnee/rk</maxLifetime>
+        <maximumPoolSize mode="ENCRYPTED">v1:gcm:pbkdf2:YfD8Rfst/z32kWXXtD3mHg:LIkaekGAyW8Ht5M7:Xsc9wpDLl6bN3/yuw7kRvF8H</maximumPoolSize>
+        <minimumIdle mode="ENCRYPTED">v1:gcm:pbkdf2:8o7RA+9yvB9Gz8pKNpzncA:QYNJJmcp8cr1JTn2:8/EKCk5yKjt6GP5WkLbvKtI</minimumIdle>
+        <idleTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:IRBOuLNE2onMrTBKjT8TfQ:njkrKy9MMI4HHhvN:a0lsHO5ABr3aQuJrIq0DgNXsextz</idleTimeout>
+        <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:DPVqfWPHXZqZHM+tyoCDCQ:1bFhYI5odGATDm8T:SUOBZqgM2K/vDRh6dHaScNzCbIDO</connectionTimeout>
+        <maxLifetime mode="ENCRYPTED">v1:gcm:pbkdf2:y0LycAu6oytFQl2ApbLzsA:oOmRdN25/Wa9DszG:FkHCDubIwnEduZLYLq0yvhboI8Zqw5M</maxLifetime>
     </connectionPool>
 
     <!-- Logging -->
     <logging>
-        <level mode="ENCRYPTED">v1:gcm:pbkdf2:EysRLjAmsXWDNcUoamcX6w:HMT/O34rPpxhJX9Y:Rygu9uiF0o13vHpxXggaUo77oVY</level>
-        <logFile mode="ENCRYPTED">v1:gcm:pbkdf2:5mBsUEx1ZfXlUkK/U7UV9w:m4iX3JzVr5oLME5e:Uz3PKJAphg4Q/q6iO48zXoJ1VJp3MrSzygnx65r/MMIILjRz</logFile>
+        <level mode="ENCRYPTED">v1:gcm:pbkdf2:jvmxJDiQSwEW8XiwTwroTw:NVR8EF/WgFdeOZ40:Y8bw0haQ8XxXJJ60empnaZKR3kc</level>
+        <logFile mode="ENCRYPTED">v1:gcm:pbkdf2:LVUG0TZrgfKP6Sa9gbttUA:C4sGOe+DtQ1pndXz:bjPpECD3n1zOMOIbYKSq1PFjJm8CeCUqFo1eRETRoX112xac</logFile>
     </logging>
 
     <!-- Notification Channels    -->
     <notification enabled="true">
 
         <threads>
-            <workerThreads mode="ENCRYPTED">v1:gcm:pbkdf2:xKNVC9f9uluDhy/0VS8VOQ:VETJjobdtozqGD5g:pmXVEV/K2r4VOSknX+DSkd6g</workerThreads>
+            <workerThreads mode="ENCRYPTED">v1:gcm:pbkdf2:WZEJv5NIzFq30/Cwm5FugA:cITUTSZlrsYPtsCk:IJXoaXd8UAxrzdjIqkh6+oyM</workerThreads>
         </threads>
 
         <email>
             <smtpHost>smtp.gmail.com</smtpHost>
-            <smtpPort mode="ENCRYPTED">v1:gcm:pbkdf2:msBhV6+LFTRJHiDWDwmLNw:Y0LX8y4ZAyfx7iST:uYlDYzG3gbG8lJyDrljdHN69Gw</smtpPort>
-            <useTLS mode="ENCRYPTED">v1:gcm:pbkdf2:wP7sqhqBH9PlsEA7Y7QTig:I0Y2sW+ooyS4A6A3:+ZBtgbLM12ztlr6eGwQb3OZ5GRA</useTLS>
-            <username mode="ENCRYPTED">v1:gcm:pbkdf2:X5Uu2fr42Bh9zeXe/yZCaA:+zlyB7+Ln5QuGQUj:Iitck6piJW2xrp6jjv/2hPpgWRu+OqMwheRy0YKvBZWTe5/FqPV1H4w</username>
-            <password>vnfo ksqp tiou byht</password>
-            <fromName mode="ENCRYPTED">v1:gcm:pbkdf2:VwVAZer6mX1MrEXdGkTWHQ:sQW53DR+rxZcwwvn:sCubCa6x4rrWoefbE2h+yuqmRuBuEMpomH2wYWU89vE</fromName>
-            <fromAddress mode="ENCRYPTED">v1:gcm:pbkdf2:nu6SB+o0QH8VvaUpzdGSag:pFvgtrk9m5Mcb9zF:yS+qj9ZeHhiiMzlkOMW0QBu7VpUb26LpIy0LgiY8lydivqxBOSon+cc</fromAddress>
-            <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:cdi7cAQyV9KhZgoMVSQ8og:qhXgVHiCSuyg8MYt:nxYLYvBoxyRjlK8JGvHV2dlA8TW2</connectionTimeout>
-            <retryAttempts mode="ENCRYPTED">v1:gcm:pbkdf2:/Crq8WqifrwGORiYnU9qrw:fbijec+U0aDTkdjl:bEnVmO8MfVro+uGX+31k3C4</retryAttempts>
+            <smtpPort mode="ENCRYPTED">v1:gcm:pbkdf2:eKl9rz4jkXhNzNT20+u82g:VNqZZGTKYq8Ieqkj:AsIlP7JQJ8D+E2N68i9V3Up9iw</smtpPort>
+            <useTLS mode="ENCRYPTED">v1:gcm:pbkdf2:jcqbGQPpSrCRA7vwZq4wNQ:eJo4rgjsNeTpey2U:/V0s1Q4d7XN1wmVMfEt8323HsTk</useTLS>
+            <username mode="ENCRYPTED">v1:gcm:pbkdf2:gY/wBHiQ/k+zfNDKo8Dg3Q:IaDk4A8WlQbvBXgp:AZYryFHhOCJmKYvxogAQM77URt9CzVG2v7AwhTb4f5sg9UfhbW/v4Xs</username>
+            <password mode="ENCRYPTED">v1:gcm:pbkdf2:towtxYGDglubJWRUlYin1g:gSp9OqNsOzOiBUtY:B5Nx3b/FsCYrCNWAXZ0JOALIOz11ane7rlCW34b/</password>
+            <fromName mode="ENCRYPTED">v1:gcm:pbkdf2:k5c58K7MwInZU5VHqWUTTQ:BsDYDrUonuo6GrE5:O2ZoeLZZaeOhBxCFLAWhFrZ7fkLg5w3D/W5/ZDZRaUY</fromName>
+            <fromAddress mode="ENCRYPTED">v1:gcm:pbkdf2:xd8Y3TkunHcFmO8JaVZOFA:KnPreP2dGTM/fADt:v3BjKjPHZX7rNctQV60NcEY9hCWMc5aj4Ly4Z6JHFA1TtlyzXpMTQtU</fromAddress>
+            <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:7EkPZ/cxOPOPHMPWBGbuTA:78jYhnfCGbW0vte3:ewxqJMOJGX05Ohd0S5qe8y+rqwsw</connectionTimeout>
+            <retryAttempts mode="ENCRYPTED">v1:gcm:pbkdf2:Po6TahF61zkBiXZEdpLhtQ:9c/qzl6MBqZZL+SD:veuzSFnPLXKwnMTTdZCPdfQ</retryAttempts>
         </email>
         <!-- Telegram Configuration -->
         <telegram enabled="true">
-            <botToken mode="ENCRYPTED">v1:gcm:pbkdf2:Am7H/apyESGhPc+dk3pU3w:6HRkEVKE6BJbqH4D:+fQ+EBGz+OktNx6gFk78WD5Cmh27NIvtcgBF2TGiwpNVbUp+FWrj4FTANkJo4iQ</botToken>
-            <defaultChatId mode="ENCRYPTED">v1:gcm:pbkdf2:T7reRU48zNNTaq6oGHlBVw:wKJ9cOB/KTFjtgLG:tLyeoPg9jr9Fe/TYiubEK4r1r7kGoOKOMTePJ0YJ</defaultChatId>
-            <apiUrl mode="ENCRYPTED">v1:gcm:pbkdf2:ODR1hdjpq/uDVM1/SSq2rw:3VK6xTrlVJa9Xj6F:WfSfdKksKEEmT2Rsx9MC4aDwAIZhtEq1Mmz1qIjm76KNo9H/6LXP9g</apiUrl>
+            <botToken mode="ENCRYPTED">v1:gcm:pbkdf2:jEcdosLHnNWNZ/nIlBNJ9w:F0xt5Sjk1z9HuR4P:VF3UBt7gSxnU1yxn2YQU11yYWm6ChUcw6Qkvv335pTnaLXFFfurpGh7KqtgBUSU</botToken>
+            <defaultChatId mode="ENCRYPTED">v1:gcm:pbkdf2:rp2uqr+0zFDEDrGFQvRDXg:IOtyXAvAmaN8nng+:EEFTNHWp21Y816ZS3+ChYo8nVDz0+4xJL7ZEAJCn</defaultChatId>
+            <apiUrl mode="ENCRYPTED">v1:gcm:pbkdf2:4v0MFXgy5/NCCGWKhxq6qg:h62boyr9ir6vlINw:PFMRHBSS2nV3xzZ+EIl1FUZPB/gR/+DDsh8BPdLRALg9K1COdkrpOg</apiUrl>
             <parseMode>HTML</parseMode>
-            <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:mfTwBBySgj4DRDarwM5U5A:fZUc4ELw9RGnMXtm:9HC/4+pDlYDzL5Q95CrPWCA+bDM</connectionTimeout>
+            <connectionTimeout mode="ENCRYPTED">v1:gcm:pbkdf2:M/a+apmp6Zn//DXQ18Eb3Q:UULnhP7E4Qtqlp85:QJGSFdxhdlO0rDoIv+InfFvJmrc</connectionTimeout>
         </telegram>
 
         <!-- SMS Configuration (optional) -->
         <sms enabled="false">
-            <provider mode="ENCRYPTED">v1:gcm:pbkdf2:DUSquEIKwrcsKtw5xY8LdQ:xGYArpZUXGeVTgM5:Ehmcs6k9xijpAvJClP7u8bCEZUtG1Q</provider>
-            <accountSid mode="ENCRYPTED">v1:gcm:pbkdf2:xkjLyj03nY4yjQ2HihNhig:xNe5ExFAj9tkx72O:jId+ue6/hujRoX0ZQi+yhcol5pE9IB04euq0eHPF</accountSid>
-            <authToken mode="ENCRYPTED">v1:gcm:pbkdf2:/zHdqzJnqk9HF7pdCBKwsw:Zb1Lpc1n4G2zADEO:kCMrGhLNIst5p7Yx+t0SZZ5YBXGUmbtfPttnzA</authToken>
-            <senderNumber mode="ENCRYPTED">v1:gcm:pbkdf2:UUVEbBQL0z/rpYSxZe++TQ:clFHJI2D8WF8MqBr:ny57ZouWWH3KyhImAQKMaibXhH4UWzS0bro4vw</senderNumber>
-            <defaultCountryCode mode="ENCRYPTED">v1:gcm:pbkdf2:1Zk4AHEoME9q2oT1Z73n0A:PouoQhBpTAg08Kwd:msUDS2bSrS/dkyFCTo5T4bbYX1I</defaultCountryCode>
-            <apiUrl mode="ENCRYPTED">v1:gcm:pbkdf2:pAoOTGE2Rt7LlwtsS4etSw:pWt5GR5/FngVB3D9:zOesZA7YZLAi+ESRKqymFzWTfdCOO9UGw8jcTYoPa3BCyti3HlM</apiUrl>
-            <maxRetries mode="ENCRYPTED">v1:gcm:pbkdf2:UQVn8nMJURDmdtBru6cQ0w:2hnzNjTbtdMDZdd+:vkE250Ay/KdThb9bOpCb6rA</maxRetries>
+            <provider mode="ENCRYPTED">v1:gcm:pbkdf2:Z/xfTUvmz4BXMSoG6BsE3A:IQBBfPTa+wuV5+qH:c6YJ8KXZ/qp41tyvX62WPJeimSte1g</provider>
+            <accountSid mode="ENCRYPTED">v1:gcm:pbkdf2:ycXfRu7O93b6hK3Bw9JBhA:ySWL3StWVHycZ8rV:PvGh/J24vT7LXExNKC5MsOAHt3B8PIZ8ZxN437CF</accountSid>
+            <authToken mode="ENCRYPTED">v1:gcm:pbkdf2:EgQDxGyU2njdlFuYLRvkSA:oBScMcdHyO8R3HUt:Lk7cg6ShAvtEbOSP94m9LiiympLtZGMhFJ62GQ</authToken>
+            <senderNumber mode="ENCRYPTED">v1:gcm:pbkdf2:ABDoBtMl8eA4gP//7rnGTQ:reU6j8faIstZjfCi:jeN9gtbg8RR80IF0JKt4AvZLIwZDASHiR6EmWA</senderNumber>
+            <defaultCountryCode mode="ENCRYPTED">v1:gcm:pbkdf2:y1BgoZ+IvbAqS5VFjjVBqw:9OXWLx/gHWE0s+n9:H8Tfmo9rGiA1ZHm1O7eFo8nTvow</defaultCountryCode>
+            <apiUrl mode="ENCRYPTED">v1:gcm:pbkdf2:toUDkJVtnFyyWpVww0fu4Q:8gZM2FWeNDPH4eWW:+oQIaO4kye0OP6aDq82rR1iEtM2LxRRsD7ESlBVaky91MN1uZvs</apiUrl>
+            <maxRetries mode="ENCRYPTED">v1:gcm:pbkdf2:q95rpiOZBj6RHsRsh4UzXw:gfqZrZ56Ze9YIv6q:nq4DwO+c/ipIDtKvhS+JCio</maxRetries>
         </sms>
     </notification>
 </configuration>

@@ -24,8 +24,7 @@ public class GetUptimeLogsHandler implements HttpHandler {
 
     private static final Map<String, String> FILTER_MAP = Map.of(
             "service", "ms.monitored_service_name",
-            "status", "status",
-            "region", "region"
+            "status", "status"
     );
 
     @Override
@@ -41,7 +40,7 @@ public class GetUptimeLogsHandler implements HttpHandler {
         String sql = """
                 SELECT ul.uptime_log_id, ms.monitored_service_name,
                        ul.status, ul.response_time_ms, ul.http_status,
-                       ul.error_message, ul.region, ul.checked_at
+                       ul.error_message, ul.checked_at
                 FROM uptime_logs ul
                 LEFT JOIN monitored_services ms
                        ON ul.monitored_service_id = ms.monitored_service_id
