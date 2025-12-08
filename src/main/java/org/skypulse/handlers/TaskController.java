@@ -4,7 +4,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import org.skypulse.rest.auth.RequireRoles;
-import org.skypulse.services.TaskScheduler;
+import org.skypulse.tasks.TaskScheduler;
 import org.skypulse.utils.ResponseUtil;
 
 /**

@@ -1,4 +1,4 @@
-package org.skypulse.handlers;
+package org.skypulse.handlers.settings;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.mustachejava.DefaultMustacheFactory;

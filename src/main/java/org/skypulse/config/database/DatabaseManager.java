@@ -34,7 +34,7 @@ public class DatabaseManager {
         }
 
         try {
-            logger.info("Initializing database connection...");
+            logger.info("[------------ Initializing database connection --------]");
             HikariConfig hc = getHikariConfig(cfg);
 
             // SSL settings
@@ -64,11 +64,11 @@ public class DatabaseManager {
 
             dataSource = newDs;
             initialized = true;
-            logger.info("Database connection successful!");
+            logger.info("[------------ Database connection successful! --------]");
 
         } catch (Exception e) {
             initialized = false;
-            logger.error("Database initialization failed: {}", e.getMessage());
+            logger.error("[------------ Database initialization failed: {} --------]", e.getMessage());
             shutdown();
             throw new SQLException(e);
         } finally {

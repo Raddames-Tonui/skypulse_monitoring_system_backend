@@ -1,4 +1,4 @@
-package org.skypulse.services.sse;
+package org.skypulse.tasks.sse;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import io.undertow.server.handlers.sse.ServerSentEventConnection;

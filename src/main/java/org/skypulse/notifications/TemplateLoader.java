@@ -7,103 +7,110 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Objects;
 
+/**
+ * TemplateLoader
+ * Loads templates according to storageMode:
+
+ * STORAGE_MODE PRIORITY/BEHAVIOR
+ * DATABASE     Only DB template. Returns null if not found.
+ * FILESYSTEM   Only filesystem template (if enabled). Returns null if not found or disabled.
+ * HYBRID       DB -> Filesystem -> Classpath fallback.
+ */
 public class TemplateLoader {
 
     private static final Logger logger = LoggerFactory.getLogger(TemplateLoader.class);
 
     private final String externalBasePath;
+    private final boolean filesystemEnabled;
 
     public TemplateLoader() {
-        this.externalBasePath = System.getProperty(
-                "notification.templates.path",
-                System.getProperty("user.dir") + "/templates"
-        );
-    }
+        this.externalBasePath = System.getProperty("notification.templates.path");
+        this.filesystemEnabled = (externalBasePath != null);
 
-    /**
-     * Load template according to storage mode and channel.
-     * storageMode "database", "filesystem", or "hybrid"
-     * dbTemplate  DB template (can be null)
-     * templateKey Key for filesystem template
-     * channel     Channel code: EMAIL, SMS, TELEGRAM, etc.
-     */
-    public String load(String storageMode, String dbTemplate, String templateKey, String channel) {
-
-        if (storageMode == null) storageMode = "hybrid";
-
-        return switch (storageMode.toLowerCase()) {
-            case "database" -> fromDatabase(dbTemplate, templateKey, channel);
-            case "filesystem" -> fromFilesystem(templateKey, channel);
-            default -> fromHybrid(dbTemplate, templateKey, channel);
-        };
-    }
-
-    private String fromDatabase(String dbTemplate, String key, String channel) {
-        if (dbTemplate == null || dbTemplate.isBlank()) {
-            logger.warn("[TemplateLoader] DB template empty for key={} channel={}", key, channel);
+        if (filesystemEnabled) {
+            logger.info("[TemplateLoader] Filesystem templates ENABLED at path={}", externalBasePath);
         } else {
-            logger.info("[TemplateLoader] Using DB template for key={} channel={}", key, channel);
+            logger.info("[TemplateLoader] Filesystem templates DISABLED. Using classpath only.");
         }
-        return dbTemplate;
     }
 
-    private String fromFilesystem(String key, String channel) {
-        if (key == null || key.isBlank()) return null;
-
-        try {
-            String tpl = Files.readString(Paths.get(externalBasePath, key));
-            logger.info("[TemplateLoader] Loaded from filesystem: {} for channel={}", key, channel);
-            return tpl;
-        } catch (Exception e) {
-            logger.error("[TemplateLoader] FS template missing: {} for channel={} - {}", key, channel, e.getMessage());
+    public String load(String storageMode, String dbTemplate, String key, String channel) {
+        if (key == null || key.isBlank()) {
+            logger.error("[TemplateLoader] Template key missing for channel={}", channel);
             return null;
         }
+
+        storageMode = storageMode != null ? storageMode.toUpperCase() : "HYBRID";
+
+        switch (storageMode) {
+            case "DATABASE":
+                if (dbTemplate != null && !dbTemplate.isBlank()) {
+                    logger.info("[TemplateLoader] Using DB template for key={} channel={}", key, channel);
+                    return dbTemplate;
+                }
+                logger.warn("[TemplateLoader] DB template not found for key={} channel={}", key, channel);
+                return null;
+
+            case "FILESYSTEM":
+                if (filesystemEnabled) {
+                    String fsTpl = loadFromFilesystem(key, channel);
+                    if (fsTpl != null) return fsTpl;
+                    logger.warn("[TemplateLoader] Filesystem template not found for key={} channel={}", key, channel);
+                    return null;
+                } else {
+                    logger.warn("[TemplateLoader] Filesystem templates disabled for key={} channel={}", key, channel);
+                    return null;
+                }
+
+            case "HYBRID":
+                if (dbTemplate != null && !dbTemplate.isBlank()) {
+                    logger.info("[TemplateLoader] [HYBRID] Using DB template for key={} channel={}", key, channel);
+                    return dbTemplate;
+                }
+
+                if (filesystemEnabled) {
+                    String fsTpl = loadFromFilesystem(key, channel);
+                    if (fsTpl != null) {
+                        logger.info("[TemplateLoader] [HYBRID] Using Filesystem template for key={} channel={}", key, channel);
+                        return fsTpl;
+                    }
+                }
+
+                String cpTpl = loadFromClasspath(key, channel);
+                if (cpTpl != null) {
+                    logger.info("[TemplateLoader] [HYBRID] Using Classpath template for key={} channel={}", key, channel);
+                    return cpTpl;
+                }
+
+                logger.error("[TemplateLoader] [HYBRID] No template found for key={} channel={}", key, channel);
+                return null;
+
+            default:
+                logger.warn("[TemplateLoader] Unknown storageMode={} for key={} channel={}", storageMode, key, channel);
+                return null;
+        }
     }
 
-    private String fromHybrid(String dbTemplate, String key, String channel) {
-        String tpl = null;
-
-        // SMS/Telegram always DB
-        if (!Objects.equals(channel, "EMAIL")) {
-            if (dbTemplate != null && !dbTemplate.isBlank()) {
-                logger.info("[TemplateLoader] Using DB template for channel={}", channel);
-                return dbTemplate;
-            } else {
-                logger.error("[TemplateLoader] No DB template for non-email channel={}", channel);
-                return null;
+    private String loadFromClasspath(String key, String channel) {
+        String path = "templates/" + key;
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
+            if (in != null) {
+                return new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
+        } catch (Exception e) {
+            logger.error("[TemplateLoader] Failed to load classpath template {} for channel={} - {}", key, channel, e.getMessage());
         }
+        return null;
+    }
 
-        // EMAIL: DB fallback first
-        if (dbTemplate != null && !dbTemplate.isBlank()) {
-            logger.info("[TemplateLoader] Using DB template for EMAIL channel");
-            return dbTemplate;
+    private String loadFromFilesystem(String key, String channel) {
+        try {
+            String fullPath = Paths.get(externalBasePath, key).toString();
+            return Files.readString(Paths.get(fullPath));
+        } catch (Exception e) {
+            logger.error("[TemplateLoader] Filesystem template missing {} for channel={} - {}", key, channel, e.getMessage());
+            return null;
         }
-
-        // Filesystem template
-        if (key != null) {
-            try {
-                tpl = Files.readString(Paths.get(externalBasePath, key));
-                logger.info("[TemplateLoader] Loaded from filesystem: {} for EMAIL", key);
-                return tpl;
-            } catch (Exception ignore) {}
-        }
-
-        // Classpath template
-        if (key != null) {
-            try (InputStream in = getClass().getClassLoader()
-                    .getResourceAsStream("templates/" + key)) {
-                if (in != null) {
-                    tpl = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-                    logger.info("[TemplateLoader] Loaded from classpath: {} for EMAIL", key);
-                    return tpl;
-                }
-            } catch (Exception ignore) {}
-        }
-
-
-        return tpl;
     }
 }

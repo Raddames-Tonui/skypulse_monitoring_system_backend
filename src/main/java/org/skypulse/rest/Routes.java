@@ -25,8 +25,8 @@ import org.skypulse.handlers.users.GetUsersHandler;
 import org.skypulse.rest.base.Dispatcher;
 import org.skypulse.rest.base.FallBack;
 import org.skypulse.rest.base.InvalidMethod;
-import org.skypulse.services.sse.SseHealthCheckHandler;
-import org.skypulse.services.sse.SseServiceStatusHandler;
+import org.skypulse.tasks.sse.SseHealthCheckHandler;
+import org.skypulse.tasks.sse.SseServiceStatusHandler;
 
 import static org.skypulse.Main.appScheduler;
 import static org.skypulse.rest.auth.HandlerFactory.build;

@@ -20,7 +20,7 @@
     <dataSource>
         <driverClassName mode="TEXT">org.postgresql.Driver</driverClassName>
 
-        <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5435/skypulse_monitoring_system_database</jdbcUrl>
+        <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5432/skypulse_monitoring_system_database</jdbcUrl>
 
         <username mode="TEXT">spadmin</username>
         <password mode="TEXT">skyp@lse!2020</password>

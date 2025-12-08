@@ -66,7 +66,7 @@ public class ConfigEncryptor {
 
         if ("encrypt".equalsIgnoreCase(mode)) {
             transformValues(doc, password, true);
-            writeXml(doc, file); // IN-PLACE
+            writeXml(doc, file);
             logger.debug("Encrypted in-place → {}", file);
         } else if ("decrypt".equalsIgnoreCase(mode)) {
             // For debugging only. In production, use decryptInMemory(...)

@@ -1,4 +1,4 @@
-package org.skypulse.services.tasks;
+package org.skypulse.tasks.tasks;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -10,11 +10,13 @@ import org.skypulse.config.database.dtos.SystemSettings.SystemDefaults;
 import org.skypulse.notifications.NotificationSender;
 import org.skypulse.notifications.RecipientResolver;
 import org.skypulse.notifications.TemplateLoader;
-import org.skypulse.services.ScheduledTask;
+import org.skypulse.notifications.email.EmailSender;
+import org.skypulse.tasks.ScheduledTask;
 import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.sql.*;
@@ -27,17 +29,14 @@ import java.util.concurrent.ScheduledExecutorService;
 public class NotificationProcessorTask implements ScheduledTask {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProcessorTask.class);
+    private static final ObjectMapper mapper = JsonUtil.mapper();
 
     private final NotificationSender sender;
     private final SystemDefaults systemDefaults;
     private final TemplateLoader templateLoader = new TemplateLoader();
     private final ScheduledExecutorService executor;
 
-    private static final ObjectMapper mapper = JsonUtil.mapper();
-
-    public NotificationProcessorTask(NotificationSender sender,
-                                     SystemDefaults systemDefaults,
-                                     int workerThreads) {
+    public NotificationProcessorTask(NotificationSender sender, SystemDefaults systemDefaults, int workerThreads) {
         this.sender = sender;
         this.systemDefaults = systemDefaults;
         this.executor = Executors.newScheduledThreadPool(workerThreads);
@@ -58,17 +57,13 @@ public class NotificationProcessorTask implements ScheduledTask {
         try (Connection conn = JdbcUtils.getConnection()) {
             conn.setAutoCommit(false);
 
-            int retryCount = systemDefaults.notificationRetryCount();
-            int cooldownMinutes = systemDefaults.notificationCooldownMinutes();
-            int retryDelaySeconds = systemDefaults.uptimeRetryDelay();
-
             String selectSql = """
                 SELECT event_outbox_id, service_id, event_type, payload, first_failure_at
                 FROM event_outbox
                 WHERE status = 'PENDING'
                 FOR UPDATE SKIP LOCKED
                 LIMIT 50
-                """;
+            """;
 
             try (PreparedStatement ps = conn.prepareStatement(selectSql);
                  ResultSet rs = ps.executeQuery()) {
@@ -85,14 +80,9 @@ public class NotificationProcessorTask implements ScheduledTask {
 
                         for (Map<String, Object> payload : payloads) {
                             scheduleSendTask(eventId, serviceId, eventType, payload, firstFailureAt,
-                                    retryCount, retryDelaySeconds, cooldownMinutes);
-                        }
-
-                        // mark as processed only if template exists
-                        if (templateExists(eventType)) {
-                            markProcessed(conn, eventId);
-                        } else {
-                            markNoTemplate(conn, eventId);
+                                    systemDefaults.notificationRetryCount(),
+                                    systemDefaults.uptimeRetryDelay(),
+                                    systemDefaults.notificationCooldownMinutes());
                         }
 
                     } catch (Exception e) {
@@ -102,7 +92,6 @@ public class NotificationProcessorTask implements ScheduledTask {
                 }
 
                 conn.commit();
-
             } catch (Exception e) {
                 conn.rollback();
                 logger.error("Batch failure: {}", e.getMessage(), e);
@@ -130,6 +119,7 @@ public class NotificationProcessorTask implements ScheduledTask {
 
     private void scheduleSendTask(long eventId, long serviceId, String eventType, Map<String, Object> payload,
                                   Timestamp firstFailureAt, int retryCount, int retryDelaySeconds, int cooldownMinutes) {
+
         Runnable task = () -> {
             try {
                 sendNotifications(eventId, serviceId, eventType, payload, firstFailureAt,
@@ -138,8 +128,10 @@ public class NotificationProcessorTask implements ScheduledTask {
                 logger.error("Error sending notifications for event {}: {}", eventId, e.getMessage(), e);
             }
         };
+
         executor.submit(task);
     }
+
 
     private void sendNotifications(long eventId, long serviceId, String eventType, Map<String, Object> payload,
                                    Timestamp firstFailureAt, int retryCount, int retryDelaySeconds, int cooldownMinutes) throws Exception {
@@ -158,14 +150,14 @@ public class NotificationProcessorTask implements ScheduledTask {
         String subjectTpl = null;
         String bodyTpl = null;
         String bodyTemplateKey = null;
-        String storageMode = "hybrid";
+        String storageMode;
 
         try (Connection conn = JdbcUtils.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT subject_template, body_template, body_template_key, storage_mode
-                     FROM notification_templates
-                     WHERE event_type = ?
-                 """)) {
+                 SELECT subject_template, body_template, body_template_key, storage_mode
+                 FROM notification_templates
+                 WHERE event_type = ?
+             """)) {
 
             ps.setString(1, eventType);
             try (ResultSet rs = ps.executeQuery()) {
@@ -175,7 +167,7 @@ public class NotificationProcessorTask implements ScheduledTask {
                     bodyTemplateKey = rs.getString("body_template_key");
                     storageMode = rs.getString("storage_mode");
 
-                    // load Email template
+                    // load Email template based on storage mode
                     bodyTpl = templateLoader.load(storageMode, bodyTpl, bodyTemplateKey, "EMAIL");
                 }
             }
@@ -189,6 +181,15 @@ public class NotificationProcessorTask implements ScheduledTask {
         String subject = renderTemplate(subjectTpl, bodyTemplateKey, payload);
         String body = renderTemplate(bodyTpl, bodyTemplateKey, payload);
 
+        // Auto attach skypulse logo
+        Map<String, String> inlineImages = Map.of(
+                "skypulseLogo", new File(
+                        Objects.requireNonNull(EmailSender.class.getClassLoader().getResource("images/skypulse_logo.png")).toURI()
+                ).getAbsolutePath()
+        );
+
+
+        // Load Recipients based on the EVENT_TYPE
         List<RecipientResolver.Recipient> recipients;
         try (Connection conn = JdbcUtils.getConnection()) {
             recipients = RecipientResolver.resolveRecipients(conn, eventType, serviceId, payload.get("userId"));
@@ -200,7 +201,7 @@ public class NotificationProcessorTask implements ScheduledTask {
 
             for (int attempt = 1; attempt <= retryCount && !sent; attempt++) {
                 try {
-                    sent = sender.send(r.type(), r.value(), subject, body, Map.of());
+                    sent = sender.send(r.type(), r.value(), subject, body, inlineImages);
                 } catch (Exception e) {
                     lastEx = e;
                 }
@@ -241,31 +242,23 @@ public class NotificationProcessorTask implements ScheduledTask {
                 h.executeUpdate();
             }
         }
-    }
 
-    private boolean templateExists(String eventType) {
-        try (Connection conn = JdbcUtils.getConnection();
-             PreparedStatement ps = conn.prepareStatement("""
-                     SELECT 1 FROM notification_templates WHERE event_type = ? LIMIT 1
-                 """)) {
-            ps.setString(1, eventType);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        } catch (SQLException e) {
-            logger.error("Failed checking template existence for event {}: {}", eventType, e.getMessage(), e);
-            return false;
+        // Mark event processed after all attempts
+        try (Connection conn = JdbcUtils.getConnection()) {
+            markProcessed(conn, eventId);
+        } catch (Exception e) {
+            logger.error("Failed marking event {} as PROCESSED: {}", eventId, e.getMessage());
         }
     }
 
     private Long getEmailChannelId() {
         try (Connection conn = JdbcUtils.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
-                     SELECT notification_channel_id
-                     FROM notification_channels
-                     WHERE notification_channel_code = 'EMAIL' AND is_enabled = TRUE
-                     LIMIT 1
-                 """)) {
+                 SELECT notification_channel_id
+                 FROM notification_channels
+                 WHERE notification_channel_code = 'EMAIL' AND is_enabled = TRUE
+                 LIMIT 1
+             """)) {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getLong("notification_channel_id");
             }

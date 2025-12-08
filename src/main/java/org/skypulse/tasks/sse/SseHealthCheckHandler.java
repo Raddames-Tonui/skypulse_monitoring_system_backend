@@ -1,4 +1,4 @@
-package org.skypulse.services.sse;
+package org.skypulse.tasks.sse;
 
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.SystemSettings;

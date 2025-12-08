@@ -125,7 +125,7 @@ public class GenerateSslPdfReports implements HttpHandler {
 
             String html = loadHtmlTemplate()
                     .replace("{{DATE_ISSUED}}",
-                            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                            LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"))
                     )
                     .replace("{{FILTERS_APPLIED}}",
                             String.format("""

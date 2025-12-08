@@ -1,18 +1,17 @@
 package org.skypulse;
 
-import org.skypulse.config.ConfigEncryptor;
 import org.skypulse.config.ConfigLoader;
 import org.skypulse.config.database.DBTaskScheduler;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.utils.LogContext;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.rest.RestApiServer;
-import org.skypulse.services.TaskScheduler;
+import org.skypulse.tasks.TaskScheduler;
 import org.skypulse.utils.security.KeyProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.skypulse.services.ApplicationTasks.registerApplicationTasks;
+import static org.skypulse.tasks.ApplicationTasks.registerApplicationTasks;
 
 /**
  * Entry point
@@ -35,19 +34,19 @@ public class Main {
 
             String masterKey = KeyProvider.getEncryptionKey();
 
-
-            try {
-                boolean encryptedNow = ConfigEncryptor.encryptIfNeeded(configPath, masterKey);
-
-                if (encryptedNow) {
-                    logger.warn("Config file contained PLAINTEXT. Auto-encrypted successfully.");
-                } else {
-                    logger.debug("Config file already encrypted.");
-                }
-            } catch (Exception ex) {
-                logger.error("Failed during auto-encryption of config.xml: {}", ex.getMessage(), ex);
-                System.exit(2);
-            }
+//
+//            try {
+//                boolean encryptedNow = ConfigEncryptor.encryptIfNeeded(configPath, masterKey);
+//
+//                if (encryptedNow) {
+//                    logger.warn("Config file contained PLAINTEXT. Auto-encrypted successfully.");
+//                } else {
+//                    logger.debug("Config file already encrypted.");
+//                }
+//            } catch (Exception ex) {
+//                logger.error("Failed during auto-encryption of config.xml: {}", ex.getMessage(), ex);
+//                System.exit(2);
+//            }
 
 
             XmlConfiguration cfg = ConfigLoader.loadConfig(configPath);

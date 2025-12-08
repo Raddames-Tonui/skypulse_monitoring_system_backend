@@ -1,4 +1,4 @@
-package org.skypulse.services;
+package org.skypulse.tasks;
 
 import org.skypulse.config.database.JdbcUtils;
 import org.slf4j.Logger;

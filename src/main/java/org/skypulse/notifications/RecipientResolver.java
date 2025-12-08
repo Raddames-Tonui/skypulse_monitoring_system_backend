@@ -30,9 +30,6 @@ public class RecipientResolver {
             case "USER_CREATED", "RESET_PASSWORD" ->
                     resolveUserCreatedOrReset(conn, payloadUserId);
 
-            case "UPTIME_REPORTS", "SERVICE_DOWN", "SERVICE_RECOVERED", "SSL_EXPIRING" ->
-                    resolveServiceNotificationContacts(conn, serviceId);
-
             default ->
                     resolveServiceNotificationContacts(conn, serviceId);
         };

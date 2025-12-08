@@ -28,11 +28,11 @@ ON CONFLICT (notification_channel_code) DO NOTHING;
 
 INSERT INTO notification_templates (event_type, subject_template, body_template, body_template_key, storage_mode)
 VALUES
-('SERVICE_DOWN','Reset your password for - {{brand_name}}','<p>Service {{service_name}} is down.</p>','emails/service_down.html','hybrid'),
-('SERVICE_RECOVERED','Service Down Has Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/service_recovered.html','hybrid')
+('SERVICE_DOWN','Service Down - {{service_name}}','<p>Service {{service_name}} is down.</p>','emails/service_down.html','hybrid'),
+('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/service_recovered.html','hybrid')
 ('SSL_EXPIRED','SSL Expiry Warning:  - {{domain}}','<p>Service {{service_name}} has recovered.</p>','emails/ssl_expiry.html','hybrid')
 ('USER_CREATED','User Registration','<p>Service {{service_name}} has recovered.</p>','emails/welcome_email.html','hybrid')
-('RESET_PASSWORD','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/reset_password.html','hybrid')
+('RESET_PASSWORD','Reset your password for - {{brand_name}}','<p>Service {{service_name}} has recovered.</p>','emails/reset_password.html','hybrid')
 ON CONFLICT DO NOTHING;
 
 
@@ -59,19 +59,19 @@ INSERT INTO system_settings (
 )
 VALUES
 (
-    300,       -- uptime_check_interval (5 min in seconds)
+    5,       -- uptime_check_interval (5 seconds)
     3,         -- uptime_retry_count
     5,         -- uptime_retry_delay (seconds)
     5,         -- sse_push_interval (seconds)
 
     360,       -- ssl_check_interval (seconds)
-    '30,14,7', -- ssl_alert_thresholds
+    '30,14,7,3', -- ssl_alert_thresholds
     3,         -- ssl_retry_count
-    360,       -- ssl_retry_delay
+    60,       -- ssl_retry_delay
 
-    300,       -- notification_check_interval (5 minutes)
+    5,       -- notification_check_interval (5 sec)
     5,         -- notification_retry_count
-    10,        -- notification_cooldown_minutes
+    3,        -- notification_cooldown_minutes
 
     1,         -- version
     TRUE,      -- is_active

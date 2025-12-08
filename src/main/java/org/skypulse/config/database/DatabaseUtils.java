@@ -162,11 +162,4 @@ public final class DatabaseUtils {
         Deque<String> val = params.get(key);
         return val != null && !val.isEmpty() ? val.peekFirst() : null;
     }
-
-
-
-
-
-
-
 }
