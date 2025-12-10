@@ -40,7 +40,7 @@ public class RequestResetPasswordHandler implements HttpHandler {
             try (Connection conn = JdbcUtils.getConnection()) {
                 conn.setAutoCommit(false);
 
-                Long userId = null;
+                long userId;
                 try (PreparedStatement ps = conn.prepareStatement(
                         "SELECT user_id FROM users WHERE LOWER(user_email) = ? AND is_deleted = FALSE"
                 )) {
@@ -49,7 +49,6 @@ public class RequestResetPasswordHandler implements HttpHandler {
                         if (rs.next()) {
                             userId = rs.getLong("user_id");
                         } else {
-                            // Do not reveal if email exists
                             conn.commit();
                             ResponseUtil.sendSuccess(exchange,
                                     "If the email exists in our system, a password reset link will be sent.",

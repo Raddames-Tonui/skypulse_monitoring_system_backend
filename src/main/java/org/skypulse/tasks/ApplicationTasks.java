@@ -4,6 +4,7 @@ import org.skypulse.config.database.dtos.SystemSettings;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.notifications.MultiChannelSender;
 import org.skypulse.notifications.email.EmailSender;
+import org.skypulse.notifications.telegram.TelegramSender;
 import org.skypulse.tasks.tasks.NotificationProcessorTask;
 import org.skypulse.tasks.tasks.SslExpiryMonitorTask;
 import org.skypulse.tasks.tasks.UptimeCheckTask;
@@ -43,8 +44,7 @@ public class ApplicationTasks {
                     // 2. Register NOTIFICATION PROCESSOR TASK
                     MultiChannelSender sender = new MultiChannelSender();
                     sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
-//                    sender.addSender("EMAIL", new EmailSender(cfg.notification.email));
-                    // sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
+                    sender.addSender("TELEGRAM", new TelegramSender(cfg.notification.telegram));
 
                     int workerThreads = 10;
                     NotificationProcessorTask notificationTask = new NotificationProcessorTask(

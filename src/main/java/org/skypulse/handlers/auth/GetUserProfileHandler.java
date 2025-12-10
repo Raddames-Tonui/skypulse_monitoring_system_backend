@@ -32,7 +32,7 @@ public class GetUserProfileHandler implements HttpHandler {
         data.put("company_name", ctx.companyName());
 
         Map<String, Object> pref = new HashMap<>();
-        pref.put("alert_channel", "email");
+        pref.put("alert_channel", "EMAIL");
         pref.put("receive_weekly_reports", true);
         pref.put("language", "en");
         pref.put("timezone", "UTC");

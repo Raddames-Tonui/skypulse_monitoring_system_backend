@@ -141,10 +141,10 @@ SELECT 'ssl_expiry','SSL Expiry Warning: {{domain}}','SSL for {{domain}} expires
 FROM users u WHERE u.user_email='admin@skywatch.com'
 ON CONFLICT DO NOTHING;
 
--- Additional hybrid templates
+-- Additional HYBRID templates
 INSERT INTO notification_templates (event_type, subject_template, body_template, body_template_key, storage_mode)
 VALUES
-('SERVICE_DOWN','Service Down Alert - {{service_name}}','<p>Service {{service_name}} is down.</p>','service_down.html','hybrid'),
-('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','service_recovered.html','hybrid')
-('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','service_recovered.html','hybrid')
+('SERVICE_DOWN','Service Down Alert - {{service_name}}','<p>Service {{service_name}} is down.</p>','service_down.html','HYBRID'),
+('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','service_recovered.html','HYBRID')
+('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','service_recovered.html','HYBRID')
 ON CONFLICT DO NOTHING;

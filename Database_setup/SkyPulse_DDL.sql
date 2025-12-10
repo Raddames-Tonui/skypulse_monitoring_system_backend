@@ -78,7 +78,7 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 CREATE TABLE user_preferences (
     user_preference_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT      NOT NULL UNIQUE,
-    alert_channel      VARCHAR(30) DEFAULT 'email', -- 'email', 'telegram', 'sms'
+    alert_channel      VARCHAR(30) DEFAULT 'EMAIL', -- 'EMAIL', 'TELEGRAM', 'SMS'
     receive_weekly_reports BOOLEAN DEFAULT TRUE,
     language           VARCHAR(10) DEFAULT 'en',
     timezone           VARCHAR(100) DEFAULT 'UTC',
@@ -94,7 +94,7 @@ CREATE TABLE user_preferences (
 CREATE TABLE user_contacts (
     user_contacts_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id          BIGINT,
-    type             VARCHAR(20) CHECK (type IN ('email', 'phone', 'sms', 'telegram', 'slack', 'teams')),
+    type             VARCHAR(20) CHECK (type IN ('EMAIL', 'PHONE', 'SMS', 'TELEGRAM')),
     value            VARCHAR(150) NOT NULL,
     verified         BOOLEAN DEFAULT FALSE,
     is_primary       BOOLEAN DEFAULT FALSE,
@@ -189,7 +189,7 @@ CREATE TABLE contact_group_members (
   contact_group_member_id    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   contact_group_id           BIGINT NOT NULL,
   user_id                    BIGINT NOT NULL,
-  is_primary                 BOOLEAN DEFAULT FALSE,
+  is_primary                 BOOLEAN DEFAULT FALSE,   -- contact group lead member
   added_at                   TIMESTAMP DEFAULT NOW(),
   date_created               TIMESTAMP DEFAULT NOW(),
   date_modified              TIMESTAMP DEFAULT NOW(),
@@ -205,10 +205,33 @@ CREATE TABLE contact_group_members (
 CREATE INDEX index_contact_group_members_group_id
     ON contact_group_members(contact_group_id);
 
--- Global channels (Email, Telegram, SMS, Teams)
+
+
+-- Store contact group contacts eg telegram, sms number,
+-- e.g., Main Alerts, Escalation Alerts, Maintenance Chat channels
+CREATE TABLE contact_group_contacts (
+    contact_group_contact_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    contact_group_id         BIGINT NOT NULL,
+    type                     VARCHAR(20) CHECK (type IN ('EMAIL', 'PHONE', 'SMS', 'TELEGRAM', 'SLACK', 'TEAMS')),
+    value                    VARCHAR(255) NOT NULL, -- For telegram: chat_id (-1001234567890)
+    verified                 BOOLEAN DEFAULT TRUE,   -- Telegram groups are trusted once added
+    is_primary               BOOLEAN DEFAULT FALSE,
+    date_created             TIMESTAMP DEFAULT NOW(),
+    date_modified            TIMESTAMP DEFAULT NOW(),
+
+    CONSTRAINT fk_contact_groups_contact_group_contacts
+        FOREIGN KEY (contact_group_id)
+        REFERENCES contact_groups(contact_group_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_cgc_group_id ON contact_group_contacts(contact_group_id);
+
+
+-- Global channels supported by the system (Email, Telegram, SMS, Teams)
 CREATE TABLE notification_channels (
   notification_channel_id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  notification_channel_code        VARCHAR(50) UNIQUE NOT NULL, -- EMAIL  TELEGRAM  SMS
+  notification_channel_code        VARCHAR(50) UNIQUE NOT NULL, -- EMAIL  TELEGRAM  SMS  TEAMS  SLACK
   notification_channel_name        VARCHAR(50),
   is_enabled                       BOOLEAN DEFAULT TRUE,
   date_created                     TIMESTAMP DEFAULT NOW(),
@@ -216,14 +239,13 @@ CREATE TABLE notification_channels (
 );
 
 
-
 -- Customizable message templates
 CREATE TABLE notification_templates (
     notification_template_id    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     uuid                        UUID UNIQUE DEFAULT gen_random_uuid(),
     event_type                  VARCHAR(50), -- SERVICE_DOWN, SSL_EXPIRING, USER_CREATED, SERVICE_RECOVERED...
-    storage_mode                VARCHAR(20) DEFAULT 'hybrid'
-                                    CHECK (storage_mode IN ('database', 'filesystem', 'hybrid')),
+    storage_mode                VARCHAR(20) DEFAULT 'HYBRID'
+                                    CHECK (storage_mode IN ('DATABASE', 'FILESYSTEM', 'HYBRID')),
     subject_template            TEXT NOT NULL,
     body_template               TEXT,   -- telegram/SMS body (HTML or plain text)
     pdf_template                TEXT,            -- Optional: for PDF layouts
@@ -244,17 +266,18 @@ CREATE TRIGGER trg_notification_templates_touch_modified
 BEFORE UPDATE ON notification_templates
 FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 
--- Log of each send attempt
+-- Log of each notification send attempt
+-- Supports both user-level (EMAIL/SMS) and group-level (TELEGRAM/SLACK/TEAMS) notifications
 CREATE TABLE notification_history (
     notification_history_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     service_id                  BIGINT NULL,
-    contact_group_id            BIGINT NULL,
-    contact_group_member_id     BIGINT NULL,
-    notification_channel_id     BIGINT NULL,
-    recipient                   VARCHAR(255) NOT NULL,
+    contact_group_id            BIGINT NULL,     -- Populated for group-level notifications
+    user_id                     BIGINT NULL,     -- Populated for user-level notifications
+    notification_channel_id     BIGINT NULL,     -- EMAIL / TELEGRAM / SMS / TEAMS / SLACK
+    recipient                   VARCHAR(255) NOT NULL, -- email, phone, chat id, webhook URL
     subject                     TEXT,
     message                     TEXT,
-    status                      VARCHAR(20) DEFAULT 'SENT', -- sent | failed | pending
+    status                      VARCHAR(20) DEFAULT 'SENT', -- SENT | FAILED | PENDING
     sent_at                     TIMESTAMP DEFAULT NOW(),
     error_message               TEXT,
     include_pdf                 BOOLEAN DEFAULT FALSE,
@@ -268,8 +291,8 @@ CREATE TABLE notification_history (
     CONSTRAINT fk_contact_groups_notification_history_group_id
         FOREIGN KEY (contact_group_id) REFERENCES contact_groups(contact_group_id),
 
-    CONSTRAINT fk_cgm_notification_history_member_id
-        FOREIGN KEY (contact_group_member_id) REFERENCES contact_group_members(contact_group_member_id),
+    CONSTRAINT fk_users_notification_history_user_id
+        FOREIGN KEY (user_id) REFERENCES users(user_id),
 
     CONSTRAINT fk_channels_notification_history_channel_id
         FOREIGN KEY (notification_channel_id) REFERENCES notification_channels(notification_channel_id),
@@ -489,18 +512,6 @@ CREATE TABLE audit_log (
 );
 
 
--- Default system settings done by administrator
---/**
--- key                        value (example)  description
--- `default_ping_interval`    `60`             Default interval in seconds for uptime checks
--- `default_retry_count`      `3`              Number of retries before marking DOWN
--- `default_retry_delay`      `5`              Delay between retries in seconds
--- `default_timeout`          `8`              HTTP request timeout in seconds
--- `default_ssl_expiry_days`  `30`             Threshold for SSL expiry alerts
--- `default_alert_channels`   `email,sms`      Default alert channels
---
---*/
-
 CREATE TABLE system_settings (
     system_setting_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
@@ -510,7 +521,7 @@ CREATE TABLE system_settings (
     sse_push_interval     INT,      -- seconds
 
     ssl_check_interval    INT,      -- seconds between SSL checks
-    ssl_alert_thresholds  TEXT,     -- e.g., "30,14,7" days
+    ssl_alert_thresholds  TEXT,     -- e.g., Threshold for SSL expiry alerts "30,14,7" days
     ssl_retry_count       INT DEFAULT 3,
     ssl_retry_delay       INT DEFAULT 360,     -- seconds
 
@@ -519,7 +530,7 @@ CREATE TABLE system_settings (
     notification_cooldown_minutes INT DEFAULT 10,
 
     version           INT DEFAULT 1,
-    is_active         BOOLEAN DEFAULT TRUE,    -- only one active per key
+    is_active         BOOLEAN DEFAULT TRUE,    -- only one active to be used by system thus can be rolled back
     changed_by        BIGINT,
     date_created      TIMESTAMP DEFAULT NOW(),
     date_modified      TIMESTAMP DEFAULT NOW(),

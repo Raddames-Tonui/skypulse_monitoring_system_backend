@@ -2,69 +2,115 @@
         "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Welcome to Tatua - Set Your Password</title>
 
     <style type="text/css">
-        body { font-family: Arial, sans-serif; background-color:#F3F4F6; margin:0; padding:0; }
-        table { border-collapse: collapse; }
-        .container { max-width:600px; margin:20px auto; background-color:#ffffff; border-radius:8px; }
-        .header { font-size:24px; font-weight:bold; color:#111827; padding:20px; text-align:center; }
-        .content { font-size:14px; color:#111827; padding:0 20px 20px; line-height:1.5; }
-        .button { background-color:#2563EB; color:#ffffff !important; padding:12px 24px; text-decoration:none !important;
-                  font-weight:bold; border-radius:6px; display:inline-block; }
-        .footer { font-size:12px; color:#6B7280; text-align:center; padding:20px; }
         @media only screen and (max-width: 480px) {
-            .container { width:95% !important; padding:15px !important; }
-            .button { width:100% !important; display:block !important; text-align:center; }
+            .mobile-stack {
+                display: block !important;
+                width: 100% !important;
+            }
+            .button {
+                display:block !important;
+                width:100% !important;
+            }
         }
     </style>
 </head>
 
-<body>
+<body style="background-color:#F3F4F6; font-family: Arial, sans-serif; margin:0; padding:0;">
 <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
         <td align="center">
-            <table class="container" cellpadding="0" cellspacing="0">
+
+            <!-- Outer Container -->
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:2rem 0;">
+
+                <!-- Logo -->
+                <tr>
+                    <td align="center" style="padding:20px 0 10px 0;">
+                        <img src="cid:skypulseLogo" alt="SkyPulse Logo" width="160" style="display:block;">
+                    </td>
+                </tr>
+
                 <!-- Header -->
                 <tr>
-                    <td class="header">
+                    <td align="center" style="font-size:24px; color:#004E6B; font-weight:bold; padding:10px;">
                         Welcome, {{firstName}} {{lastName}}!
                     </td>
                 </tr>
 
-                <!-- Content -->
+                <!-- Subheader -->
                 <tr>
-                    <td class="content">
-                        <p>Your account has been successfully created.</p>
-                        <p>To set your password and activate your account, please click the button below:</p>
+                    <td align="center" style="font-size:18px; color:#111827; font-weight:bold; padding:0 10px 20px;">
+                        Your SkyPulse Account Is Ready
+                    </td>
+                </tr>
 
-                        <p align="center" style="padding:20px 0; margin:0;">
-                            <a href="{{passwordResetLink}}" class="button">Set Your Password</a>
+                <!-- Content Section -->
+                <tr>
+                    <td style="padding:0 20px; font-size:14px; color:#111827;">
+                        <p style="font-size:16px; font-weight:bold; color:#004E6B;">Next Steps</p>
+
+                        <p>Your account has been successfully created.</p>
+
+                        <p>
+                            To activate your account and set your password, please click the button below:
                         </p>
 
-                        <p>If the button does not work, copy and paste the following link into your browser:</p>
+                        <hr style="border:0; border-top:1px solid #E5E7EB; margin:20px 0;"/>
+
+                        <p>If the button below does not work, you can use the fallback link further down.</p>
+                    </td>
+                </tr>
+
+                <!-- Button -->
+                <tr>
+                    <td align="center" style="padding:20px;">
+                        <a href="{{passwordResetLink}}"
+                           style="background-color:#004E6B; color:#ffffff; padding:12px 24px;
+                                  text-decoration:none; font-weight:bold; border-radius:4px; display:inline-block;"
+                           class="button">
+                            Set Your Password
+                        </a>
+                    </td>
+                </tr>
+
+                <!-- Link fallback -->
+                <tr>
+                    <td style="padding:0 20px 20px; font-size:14px; color:#111827;">
+                        <p>If the button does not work, copy and paste this link into your browser:</p>
                         <p>
                             <a href="{{passwordResetLink}}" style="color:#2563EB; text-decoration:none;">
                                 {{passwordResetLink}}
                             </a>
                         </p>
 
-                        <p>We’re excited to have you on board!</p>
+                        <p>We are excited to have you on board.</p>
                     </td>
                 </tr>
 
                 <!-- Footer -->
                 <tr>
-                    <td class="footer">
-                        Tatua Solutions Inc.<br>
-                        123 Innovation Drive, Suite 400, San Francisco, CA 94105<br>
-                        <a href="#" style="color:#2563EB; text-decoration:none;">Privacy Policy</a> |
-                        <a href="#" style="color:#2563EB; text-decoration:none;">Terms of Service</a>
+                    <td style="padding:20px; font-size:12px; color:#666666;
+                               text-align:center; background-color:#f3f4f6;">
+                        <p style="margin-bottom:8px;">
+                            SkyPulse Monitoring System
+                        </p>
+                        <p>
+                            Nairobi, Kenya<br/><br/>
+
+                            <a href="{{privacy_url}}" style="color:#2563EB; text-decoration:none;">Privacy Policy</a> |
+                            <a href="{{terms_url}}" style="color:#2563EB; text-decoration:none;">Terms of Service</a> |
+                            <a href="{{unsubscribe_url}}" style="color:#2563EB; text-decoration:none;">Unsubscribe</a>
+                        </p>
                     </td>
                 </tr>
+
             </table>
+
         </td>
     </tr>
 </table>

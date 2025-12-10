@@ -10,9 +10,7 @@ import org.skypulse.config.database.dtos.SystemSettings.SystemDefaults;
 import org.skypulse.notifications.NotificationSender;
 import org.skypulse.notifications.RecipientResolver;
 import org.skypulse.notifications.TemplateLoader;
-import org.skypulse.notifications.email.EmailSender;
 import org.skypulse.tasks.ScheduledTask;
-import org.skypulse.utils.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 public class NotificationProcessorTask implements ScheduledTask {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationProcessorTask.class);
-    private static final ObjectMapper mapper = JsonUtil.mapper();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     private final NotificationSender sender;
     private final SystemDefaults systemDefaults;
@@ -132,147 +130,162 @@ public class NotificationProcessorTask implements ScheduledTask {
         executor.submit(task);
     }
 
-
     private void sendNotifications(long eventId, long serviceId, String eventType, Map<String, Object> payload,
                                    Timestamp firstFailureAt, int retryCount, int retryDelaySeconds, int cooldownMinutes) throws Exception {
 
-        if ("SERVICE_DOWN".equals(eventType) && firstFailureAt != null) {
+        // Skip cooldown for SERVICE_DOWN
+        if ("SERVICE_DOWN".equalsIgnoreCase(eventType) && firstFailureAt != null) {
             Instant expiry = firstFailureAt.toInstant().plus(Duration.ofMinutes(cooldownMinutes));
             if (expiry.isAfter(Instant.now())) return;
         }
 
-        if ("SERVICE_RECOVERED".equals(eventType) && firstFailureAt != null) {
+        // Add downtime for SERVICE_RECOVERED
+        if ("SERVICE_RECOVERED".equalsIgnoreCase(eventType) && firstFailureAt != null) {
             Duration dt = Duration.between(firstFailureAt.toInstant(), Instant.now());
             payload.put("downtime_seconds", dt.getSeconds());
         }
 
-        // fetch template from DB
-        String subjectTpl = null;
-        String bodyTpl = null;
-        String bodyTemplateKey = null;
-        String storageMode;
-
-        try (Connection conn = JdbcUtils.getConnection();
-             PreparedStatement ps = conn.prepareStatement("""
-                 SELECT subject_template, body_template, body_template_key, storage_mode
-                 FROM notification_templates
-                 WHERE event_type = ?
-             """)) {
-
-            ps.setString(1, eventType);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    subjectTpl = rs.getString("subject_template");
-                    bodyTpl = rs.getString("body_template");
-                    bodyTemplateKey = rs.getString("body_template_key");
-                    storageMode = rs.getString("storage_mode");
-
-                    // load Email template based on storage mode
-                    bodyTpl = templateLoader.load(storageMode, bodyTpl, bodyTemplateKey, "EMAIL");
-                }
-            }
-        }
-
-        if (subjectTpl == null || bodyTpl == null) {
-            logger.warn("No template found for event={}, skipping notification", eventType);
-            return;
-        }
-
-        String subject = renderTemplate(subjectTpl, bodyTemplateKey, payload);
-        String body = renderTemplate(bodyTpl, bodyTemplateKey, payload);
-
-        // Auto attach skypulse logo
-        Map<String, String> inlineImages = Map.of(
-                "skypulseLogo", new File(
-                        Objects.requireNonNull(EmailSender.class.getClassLoader().getResource("images/skypulse_logo.png")).toURI()
-                ).getAbsolutePath()
-        );
-
-
-        // Load Recipients based on the EVENT_TYPE
+        // Load all recipients
         List<RecipientResolver.Recipient> recipients;
         try (Connection conn = JdbcUtils.getConnection()) {
             recipients = RecipientResolver.resolveRecipients(conn, eventType, serviceId, payload.get("userId"));
         }
 
+        // Group recipients by channel type
+        Map<String, List<RecipientResolver.Recipient>> recipientsByType = new HashMap<>();
         for (RecipientResolver.Recipient r : recipients) {
-            boolean sent = false;
-            Exception lastEx = null;
+            String type = r.type().toUpperCase();
+            recipientsByType.computeIfAbsent(type, k -> new ArrayList<>()).add(r);
+        }
 
-            for (int attempt = 1; attempt <= retryCount && !sent; attempt++) {
-                try {
-                    sent = sender.send(r.type(), r.value(), subject, body, inlineImages);
-                } catch (Exception e) {
-                    lastEx = e;
-                }
-                if (!sent) Thread.sleep(retryDelaySeconds * 1000L);
-            }
+        for (Map.Entry<String, List<RecipientResolver.Recipient>> entry : recipientsByType.entrySet()) {
+            String channel = entry.getKey();
+            List<RecipientResolver.Recipient> channelRecipients = entry.getValue();
 
-            // log history
+            // Fetch template for this channel
+            String subjectTpl = null;
+            String bodyTpl = null;
+            String bodyTemplateKey = null;
+
             try (Connection conn = JdbcUtils.getConnection();
-                 PreparedStatement h = conn.prepareStatement("""
-                     INSERT INTO notification_history (
-                         service_id, contact_group_id, contact_group_member_id,
-                         notification_channel_id, recipient, subject, message,
-                         status, sent_at, error_message,
-                         include_pdf, pdf_template_id, pdf_file_path,
-                         pdf_file_hash, pdf_generated_at
-                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?)
+                 PreparedStatement ps = conn.prepareStatement("""
+                     SELECT subject_template, body_template, body_template_key
+                     FROM notification_templates
+                     WHERE event_type = ?
                  """)) {
 
-                h.setLong(1, serviceId);
-                h.setNull(2, Types.BIGINT);
-                h.setNull(3, Types.BIGINT);
+                ps.setString(1, eventType);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        subjectTpl = rs.getString("subject_template");
+                        bodyTpl = rs.getString("body_template");
+                        bodyTemplateKey = rs.getString("body_template_key");
 
-                Long channelId = getEmailChannelId();
-                if (channelId != null) h.setLong(4, channelId); else h.setNull(4, Types.BIGINT);
+                        // Load the proper template for this channel
+                        bodyTpl = templateLoader.load(channel, bodyTpl, bodyTemplateKey);
+                    }
+                }
+            }
 
-                h.setString(5, r.value());
-                h.setString(6, subject);
-                h.setString(7, body);
-                h.setString(8, sent ? "SENT" : "FAILED");
-                h.setString(9, sent ? null : (lastEx != null ? lastEx.getMessage() : "Retries exhausted"));
+            if (subjectTpl == null || bodyTpl == null) {
+                logger.warn("No template found for event={} channel={}, skipping notifications", eventType, channel);
+                continue;
+            }
 
-                h.setNull(10, Types.BOOLEAN);
-                h.setNull(11, Types.BIGINT);
-                h.setNull(12, Types.VARCHAR);
-                h.setNull(13, Types.VARCHAR);
-                h.setNull(14, Types.TIMESTAMP);
+            // Render Mustache templates
+            String subject = renderTemplate(subjectTpl, bodyTemplateKey, payload);
+            String body = renderTemplate(bodyTpl, bodyTemplateKey, payload);
 
-                h.executeUpdate();
+            // Inline images only for EMAIL
+            Map<String, String> inlineImages = Map.of();
+            if ("EMAIL".equalsIgnoreCase(channel)) {
+                inlineImages = Map.of(
+                        "skypulseLogo", new File(
+                                Objects.requireNonNull(getClass().getClassLoader().getResource("images/skypulse_logo.png")).toURI()
+                        ).getAbsolutePath()
+                );
+            }
+
+            // Send notifications
+            for (RecipientResolver.Recipient r : channelRecipients) {
+                boolean sent = false;
+                Exception lastEx = null;
+
+                for (int attempt = 1; attempt <= retryCount && !sent; attempt++) {
+                    try {
+                        sent = sender.send(channel, r.value(), subject, body, inlineImages);
+                    } catch (Exception e) {
+                        lastEx = e;
+                    }
+                    if (!sent) Thread.sleep(retryDelaySeconds * 1000L);
+                }
+
+                // Log history
+                try (Connection conn = JdbcUtils.getConnection();
+                     PreparedStatement h = conn.prepareStatement("""
+                         INSERT INTO notification_history (
+                             service_id,
+                             contact_group_id,
+                             user_id,
+                             notification_channel_id,
+                             recipient,
+                             subject,
+                             message,
+                             status,
+                             sent_at,
+                             error_message
+                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                     """)) {
+
+                    h.setLong(1, serviceId);
+                    if (r.contactGroupId() != null && r.contactGroupId() > 0) h.setLong(2, r.contactGroupId());
+                    else h.setNull(2, Types.BIGINT);
+
+                    if (r.userId() != null && r.userId() > 0) h.setLong(3, r.userId());
+                    else h.setNull(3, Types.BIGINT);
+
+                    Long channelId = getChannelId(channel);
+                    if (channelId != null) h.setLong(4, channelId); else h.setNull(4, Types.BIGINT);
+
+                    h.setString(5, r.value());
+                    h.setString(6, subject);
+                    h.setString(7, body);
+                    h.setString(8, sent ? "SENT" : "FAILED");
+                    h.setString(9, sent ? null : (lastEx != null ? lastEx.getMessage() : "Retries exhausted"));
+
+                    h.executeUpdate();
+                }
             }
         }
 
-        // Mark event processed after all attempts
+        // Mark event processed
         try (Connection conn = JdbcUtils.getConnection()) {
             markProcessed(conn, eventId);
         } catch (Exception e) {
-            logger.error("Failed marking event {} as PROCESSED: {}", eventId, e.getMessage());
+            logger.error("Failed marking event {} as PROCESSED: {}", eventId, e.getMessage(), e);
         }
     }
 
-    private Long getEmailChannelId() {
+    private Long getChannelId(String code) {
         try (Connection conn = JdbcUtils.getConnection();
              PreparedStatement ps = conn.prepareStatement("""
                  SELECT notification_channel_id
                  FROM notification_channels
-                 WHERE notification_channel_code = 'EMAIL' AND is_enabled = TRUE
+                 WHERE notification_channel_code = ? AND is_enabled = TRUE
                  LIMIT 1
              """)) {
+            ps.setString(1, code.toUpperCase());
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getLong("notification_channel_id");
             }
         } catch (SQLException e) {
-            logger.error("Failed fetching EMAIL channel_id: {}", e.getMessage(), e);
+            logger.error("Failed fetching channel_id for {}: {}", code, e.getMessage(), e);
         }
         return null;
     }
 
     private String renderTemplate(String tpl, String templateKey, Map<String, Object> payload) throws Exception {
-        if (tpl == null || tpl.isBlank()) {
-            tpl = templateLoader.load("hybrid", null, templateKey, "EMAIL");
-            if (tpl == null) throw new Exception("No template found for key=" + templateKey);
-        }
+        if (tpl == null || tpl.isBlank()) throw new Exception("No template found for key=" + templateKey);
         Mustache m = new DefaultMustacheFactory().compile(new StringReader(tpl), "tpl");
         StringWriter w = new StringWriter();
         m.execute(w, payload).flush();
@@ -282,15 +295,6 @@ public class NotificationProcessorTask implements ScheduledTask {
     private void markProcessed(Connection conn, long eventId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE event_outbox SET status='PROCESSED', updated_at=NOW() WHERE event_outbox_id=?"
-        )) {
-            ps.setLong(1, eventId);
-            ps.executeUpdate();
-        }
-    }
-
-    private void markNoTemplate(Connection conn, long eventId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE event_outbox SET status='NO_TEMPLATE_FOUND', updated_at=NOW() WHERE event_outbox_id=?"
         )) {
             ps.setLong(1, eventId);
             ps.executeUpdate();

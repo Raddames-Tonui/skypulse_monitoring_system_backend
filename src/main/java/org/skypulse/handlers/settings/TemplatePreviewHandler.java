@@ -48,7 +48,7 @@ public class TemplatePreviewHandler implements HttpHandler {
 
         try (Connection conn = org.skypulse.config.database.JdbcUtils.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "SELECT body_template, body_template_key, sample_data, storage_mode " +
+                     "SELECT body_template, body_template_key, sample_data " +
                              "FROM notification_templates WHERE event_type = ? LIMIT 1"
              )) {
             ps.setString(1, eventType);
@@ -66,8 +66,8 @@ public class TemplatePreviewHandler implements HttpHandler {
             logger.error("Failed to load template from DB for event_type={}", eventType, e);
         }
 
-        String storageMode = "hybrid";
-        String template = loader.load(storageMode, dbTemplate, templateKey, channel);
+        // Load the template using TemplateLoader
+        String template = loader.load(channel, dbTemplate, templateKey);
 
         if (template == null || template.isBlank()) {
             exchange.setStatusCode(404);

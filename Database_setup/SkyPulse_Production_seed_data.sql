@@ -6,14 +6,14 @@ ON CONFLICT (company_name) DO NOTHING;
 -- ROLES
 INSERT INTO roles (role_name, role_description)
 VALUES
-    ('Admin', 'Full system access'),
-    ('Operator', 'Can manage services and alerts'),
-    ('Viewer', 'Read-only dashboard access')
+    ('ADMIN', 'Full system access'),
+    ('OPERATOR', 'Can manage services and alerts'),
+    ('VIEWER', 'Read-only dashboard access')
 ON CONFLICT (role_name) DO NOTHING;
 
 -- USER PREFERENCES
 INSERT INTO user_preferences (user_id, alert_channel, language, timezone)
-SELECT user_id, 'email', 'en', 'UTC' FROM users
+SELECT user_id, 'EMAIL', 'en', 'UTC' FROM users
 ON CONFLICT (user_id) DO NOTHING;
 
 
@@ -26,13 +26,14 @@ VALUES
 ON CONFLICT (notification_channel_code) DO NOTHING;
 
 
+
 INSERT INTO notification_templates (event_type, subject_template, body_template, body_template_key, storage_mode)
 VALUES
-('SERVICE_DOWN','Service Down - {{service_name}}','<p>Service {{service_name}} is down.</p>','emails/service_down.html','hybrid'),
-('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/service_recovered.html','hybrid')
-('SSL_EXPIRED','SSL Expiry Warning:  - {{domain}}','<p>Service {{service_name}} has recovered.</p>','emails/ssl_expiry.html','hybrid')
-('USER_CREATED','User Registration','<p>Service {{service_name}} has recovered.</p>','emails/welcome_email.html','hybrid')
-('RESET_PASSWORD','Reset your password for - {{brand_name}}','<p>Service {{service_name}} has recovered.</p>','emails/reset_password.html','hybrid')
+('SERVICE_DOWN','Service Down - {{service_name}}','<p>Service {{service_name}} is down.</p>','emails/service_down.html','HYBRID'),
+('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/service_recovered.html','HYBRID')
+('SSL_EXPIRED','SSL Expiry Warning:  - {{domain}}','<p>Service {{service_name}} has recovered.</p>','emails/ssl_expiry.html','HYBRID')
+('USER_CREATED','User Registration','<p>Service {{service_name}} has recovered.</p>','emails/welcome_email.html','HYBRID')
+('RESET_PASSWORD','Reset your password for - {{brand_name}}','<p>Service {{service_name}} has recovered.</p>','emails/reset_password.html','HYBRID')
 ON CONFLICT DO NOTHING;
 
 

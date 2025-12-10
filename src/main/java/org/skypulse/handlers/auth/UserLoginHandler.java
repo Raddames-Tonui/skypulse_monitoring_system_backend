@@ -170,7 +170,7 @@ public class UserLoginHandler implements HttpHandler {
             profile.put("company_name", null);
             profile.put("user_contacts", Collections.emptyList());
             profile.put("user_preferences", Map.of(
-                    "alert_channel", "email",
+                    "alert_channel", "EMAIL",
                     "receive_weekly_reports", true,
                     "timezone", "UTC",
                     "language", "en",

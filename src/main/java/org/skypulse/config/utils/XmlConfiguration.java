@@ -1,5 +1,6 @@
 package org.skypulse.config.utils;
 
+import jakarta.xml.bind.annotation.XmlAttribute;
 import jakarta.xml.bind.annotation.XmlRootElement;
 
 @XmlRootElement(name = "configuration")
@@ -57,6 +58,7 @@ public class XmlConfiguration {
 
     @XmlRootElement(name = "notification")
     public static class Notification {
+        @XmlAttribute
         public boolean enabled;
         public Email email;
         public Telegram telegram;
@@ -77,16 +79,19 @@ public class XmlConfiguration {
 
         @XmlRootElement(name = "telegram")
         public static class Telegram {
+            @XmlAttribute
             public boolean enabled;
             public String botToken;
             public String defaultChatId;
             public String apiUrl;
             public String parseMode;
             public int connectionTimeout;
+            public int sendRetryAttempts;
         }
 
         @XmlRootElement(name = "sms")
         public static class SMS {
+            @XmlAttribute
             public boolean enabled;
             public String provider;
             public String accountSid;

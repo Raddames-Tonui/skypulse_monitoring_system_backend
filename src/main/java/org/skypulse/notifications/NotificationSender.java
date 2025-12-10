@@ -11,5 +11,4 @@ public interface NotificationSender {
      * @return true if sent successfully
      */
     boolean send(String channelCode, String destination, String subject, String message, Map<String, String> inlineImages);
-
 }

@@ -66,11 +66,12 @@
         </email>
         <!-- Telegram Configuration -->
         <telegram enabled="true">
-            <botToken mode="TEXT">123456789:ABCDEF-your-bot-token</botToken>
+            <botToken mode="TEXT">8306205591:AAE1qu4bJavo4F_pybjRqnwdRPDHsbovTKw</botToken>
             <defaultChatId mode="TEXT">-1001234567890</defaultChatId>
             <apiUrl mode="TEXT">https://api.telegram.org</apiUrl>
             <parseMode>HTML</parseMode>
             <connectionTimeout mode="TEXT">5000</connectionTimeout>
+            <sendRetryAttempts>2</sendRetryAttempts>
         </telegram>
 
         <!-- SMS Configuration (optional) -->
