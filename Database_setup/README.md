@@ -6,8 +6,20 @@ This guide walks you through setting up a PostgreSQL database for Skypulse, crea
 
 You can use the default PostgreSQL installation or run it via Docker.
 
-### Using Docker 
+### Using Docker
 
+#### a) Step-by-step for Linux / WSL
+```bash
+docker run --name skypulse-ms-database \
+  -e POSTGRES_USER=spadmin \
+  -e POSTGRES_PASSWORD='skyp@lse!2020' \
+  -e POSTGRES_DB=skypulse_monitoring_system_database \
+  -v skypulse_pgdata:/var/lib/postgresql \
+  -p 5432:5432 \
+  -d postgres:latest
+```
+
+#### b) Step-by-step for Windows PowerShell
 ```powershell
 docker volume create skypulse_pgdata
 
@@ -15,7 +27,7 @@ docker run --name skypulse-ms-database `
   -e POSTGRES_USER=spadmin `
   -e POSTGRES_PASSWORD='skyp@lse!2020' `
   -e POSTGRES_DB=skypulse_monitoring_system_database `
-  -v skypulse_pgdata:/var/lib/postgresql/data `
+  -v skypulse_pgdata:/var/lib/postgresql `
   -p 5432:5432 `
   -d postgres:latest
 ```

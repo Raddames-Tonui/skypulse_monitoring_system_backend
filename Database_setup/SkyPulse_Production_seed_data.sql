@@ -1,3 +1,9 @@
+-- ============================================================
+-- SKY PULSE MONITORING SYSTEM • PRODUCTION SEED DATA
+-- Fully compatible with current schema
+-- Primary admin: 
+-- ============================================================
+
 -- COMPANY   -- CHANGE COMPANY NAME
 INSERT INTO company (company_name, company_description)
 VALUES ('SkyPulse Inc.', 'Default company for SkyPulse monitoring system')
@@ -38,24 +44,10 @@ ON CONFLICT DO NOTHING;
 
 
 -- SYSTEM SETTINGS
-INSERT INTO system_settings (
-    uptime_check_interval,
-    uptime_retry_count,
-    uptime_retry_delay,
-    sse_push_interval,
-
-    ssl_check_interval,
-    ssl_alert_thresholds,
-    ssl_retry_count,
-    ssl_retry_delay,
-
-    notification_check_interval,
-    notification_retry_count,
-    notification_cooldown_minutes,
-
-    version,
-    is_active,
-    changed_by
+INSERT INTO system_settings (   uptime_check_interval, uptime_retry_count,  uptime_retry_delay,   sse_push_interval,
+    ssl_check_interval, ssl_alert_thresholds,    ssl_retry_count,    ssl_retry_delay,
+    notification_check_interval,    notification_retry_count,   notification_cooldown_minutes,
+    version,    is_active,  changed_by
 )
 VALUES
 (
