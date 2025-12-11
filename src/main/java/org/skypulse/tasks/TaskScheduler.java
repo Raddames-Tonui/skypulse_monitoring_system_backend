@@ -68,12 +68,11 @@ public class TaskScheduler {
             errorMessage = e.getMessage();
             logger.error("Error in scheduled task {}: {}", task.name(), errorMessage, e);
         } finally {
-            long end = System.currentTimeMillis();
-            logBackgroundTask(task.name(), start, end, errorMessage);
+            logBackgroundTask(task.name(), start, errorMessage);
         }
     }
 
-    private void logBackgroundTask(String taskName, long startMillis, long endMillis, String errorMessage) {
+    private void logBackgroundTask(String taskName, long startMillis,String errorMessage) {
         try (Connection conn = JdbcUtils.getConnection();
              PreparedStatement ps = conn.prepareStatement(
                      "INSERT INTO background_tasks(task_name, task_type, status, last_run_at, next_run_at, error_message, date_created, date_modified) " +
@@ -116,6 +115,7 @@ public class TaskScheduler {
         this.executor = new ScheduledThreadPoolExecutor(poolSize);
         this.executor.setRemoveOnCancelPolicy(true);
     }
+
 
     public synchronized void reload() {
         logger.info("[--------- Reloading TaskScheduler ---------]");

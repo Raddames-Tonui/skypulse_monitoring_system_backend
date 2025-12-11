@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourcePerFileMappings">
-    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/90099b31-16c0-4120-8d1a-a884f919922e/console.sql" value="90099b31-16c0-4120-8d1a-a884f919922e" />
-    <file url="file://$PROJECT_DIR$/schema.sql" value="90099b31-16c0-4120-8d1a-a884f919922e" />
-    <file url="file://$PROJECT_DIR$/seed.sql" value="90099b31-16c0-4120-8d1a-a884f919922e" />
+    <file url="file://$PROJECT_DIR$/queries/SkyPulse_DDL.sql" value="7dd372da-87b3-4649-a95c-d2f687dc8817" />
+    <file url="file://$PROJECT_DIR$/queries/SkyPulse_Production_seed_data.sql" value="7dd372da-87b3-4649-a95c-d2f687dc8817" />
   </component>
 </project>

@@ -15,7 +15,7 @@ import static org.skypulse.tasks.ApplicationTasks.registerApplicationTasks;
 
 /**
  * Entry point
- * Load Configuration from Xml
+ * Load Configuration from config.xml
  * Connect to Database
  * Register Tasks including SSE
  */

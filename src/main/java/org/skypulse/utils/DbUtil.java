@@ -9,7 +9,6 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Provide executeQuery, executeUpdate, executeBatch wrappers
@@ -26,15 +25,7 @@ public class DbUtil {
 
     private DbUtil() {}
 
-    public static <T> T querySingle(String sql, SqlConsumer<PreparedStatement> paramSetter, SqlFunction<ResultSet, T> resultMapper) throws SQLException, JsonProcessingException {
-        try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection();
-            PreparedStatement ps = conn.prepareStatement(sql)) {
-                paramSetter.accept(ps);
-                try (ResultSet rs = ps.executeQuery()) {
-                    return rs.next() ? resultMapper.apply(rs) : null;
-                }
-        }
-    }
+
 
     public static int update(String sql, SqlConsumer<PreparedStatement> paramSetter) throws SQLException {{
             try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection();
@@ -48,15 +39,7 @@ public class DbUtil {
     }
     }
 
-    public static void batch(String sql, SqlConsumer<PreparedStatement> batchSetter) throws SQLException {
-        try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            batchSetter.accept(ps);
-            ps.executeBatch();
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-    }
+
 
     public static Connection getConnection() throws SQLException {
         DataSource ds = DatabaseManager.getDataSource();
@@ -69,11 +52,6 @@ public class DbUtil {
     @FunctionalInterface
     public interface SqlConsumer<T> {
         void accept(T t) throws SQLException, JsonProcessingException;
-    }
-
-    @FunctionalInterface
-    public interface SqlFunction<T, R> {
-        R apply(T t) throws SQLException;
     }
 
 

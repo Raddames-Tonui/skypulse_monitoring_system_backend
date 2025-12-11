@@ -11,11 +11,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 
 public class RestApiServer {
     private static final Logger logger = LoggerFactory.getLogger(RestApiServer.class);
-    private static final Instant START_TIME = Instant.now();
 
     public static void startUndertow(XmlConfiguration cfg) {
         if (cfg == null || cfg.server == null) {
@@ -31,7 +29,7 @@ public class RestApiServer {
                     .addPrefixPath(BASE_REST_API_URL + "/contacts",  Routes.contactGroups(cfg))
                     .addPrefixPath(BASE_REST_API_URL + "/services", Routes.monitoredServices(cfg))
                     .addPrefixPath(BASE_REST_API_URL+"/settings", Routes.systemSettings(cfg))
-                    .addPrefixPath(BASE_REST_API_URL+"/sse", Routes.serverSentEvents(cfg))
+                    .addPrefixPath(BASE_REST_API_URL+"/sse", Routes.serverSentEvents())
                     .addPrefixPath(BASE_REST_API_URL+"/reports", Routes.generateReports(cfg))
                     .addPrefixPath(BASE_REST_API_URL+"/users", Routes.users(cfg));
 

@@ -6,7 +6,6 @@ import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.handlers.HealthCheckHandler;
 import org.skypulse.handlers.TaskController;
 import org.skypulse.handlers.auth.*;
-import org.skypulse.handlers.company.ListCompanies;
 import org.skypulse.handlers.contacts.*;
 import org.skypulse.handlers.logs.GetAuditLogsHandler;
 import org.skypulse.handlers.logs.GetSSLLogsHandler;
@@ -18,6 +17,7 @@ import org.skypulse.handlers.services.GetSingleMonitoredServiceHandler;
 import org.skypulse.handlers.services.MonitoredServiceHandler;
 import org.skypulse.handlers.services.UpdateMonitoredServiceHandler;
 import org.skypulse.handlers.settings.GetActiveSystemSettingsHandler;
+import org.skypulse.handlers.settings.ListCompanies;
 import org.skypulse.handlers.settings.SystemSettingsHandlers;
 import org.skypulse.handlers.users.CreateNewUser;
 import org.skypulse.handlers.users.GetUserDetailHandler;
@@ -123,8 +123,7 @@ public class Routes {
                 .setFallbackHandler(new Dispatcher(new FallBack()));
     }
 
-    public static RoutingHandler serverSentEvents(XmlConfiguration cfg) throws Exception {
-        long accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60;
+    public static RoutingHandler serverSentEvents() throws Exception {
 
         SseHealthCheckHandler sseHealthCheckHandler = new SseHealthCheckHandler();
         SseServiceStatusHandler sseServiceStatusHandler = new SseServiceStatusHandler();

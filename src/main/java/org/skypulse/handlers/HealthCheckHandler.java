@@ -4,7 +4,6 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.rest.auth.RequireRoles;
-import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
 import org.skypulse.utils.security.KeyProvider;
 

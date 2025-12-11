@@ -16,7 +16,7 @@ public class XmlUtil {
      * Throws Exception: Caller must handle or propagate exceptions (e.g., invalid XML).
      */
 
-    @SuppressWarnings("unhecked")
+    @SuppressWarnings("unchecked")
     public static <T> T unmarshal(Document xmlDoc, Class<T> type) throws Exception {
         JAXBContext ctx = JAXBContext.newInstance(type);
         Unmarshaller um = ctx.createUnmarshaller();

@@ -4,9 +4,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.*;
 
 public final class SslUtils {

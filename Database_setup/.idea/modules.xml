@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/skypulse_monitoring_system_DATABASE.iml" filepath="$PROJECT_DIR$/.idea/skypulse_monitoring_system_DATABASE.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/Database_setup.iml" filepath="$PROJECT_DIR$/.idea/Database_setup.iml" />
     </modules>
   </component>
 </project>

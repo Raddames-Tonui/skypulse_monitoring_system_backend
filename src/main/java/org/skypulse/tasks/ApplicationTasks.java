@@ -12,19 +12,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.skypulse.Main.appScheduler;
 
 public class ApplicationTasks {
 
     private static final Logger logger = LoggerFactory.getLogger(ApplicationTasks.class);
-    private static final AtomicInteger INIT_COUNT = new AtomicInteger(0);
 
-    public void init() {
-        int count = INIT_COUNT.incrementAndGet();
-        logger.warn("ApplicationTasks.init() called {} times", count);
-    }
 
     public static void registerApplicationTasks(boolean dbAvailable, XmlConfiguration cfg) {
         logger.info("[------------ Registering Services ------------]");

@@ -1,4 +1,4 @@
-package org.skypulse.handlers.company;
+package org.skypulse.handlers.settings;
 
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;

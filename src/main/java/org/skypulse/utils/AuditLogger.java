@@ -13,7 +13,7 @@ import java.sql.PreparedStatement;
  * Log a user action to the audit_log table
  * - entity     Table or entity affected
  * - entityId   ID of the affected entity
- * - action     Action performed: CREATE / UPDATE / DELETE / ROLLBACK
+ * - action,  Action performed: CREATE / UPDATE / DELETE / ROLLBACK
  * - beforeData state before change (nullable)
  * - afterData  state after change (nullable)
  */
