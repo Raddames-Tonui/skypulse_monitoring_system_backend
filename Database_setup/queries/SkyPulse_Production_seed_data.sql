@@ -26,16 +26,91 @@ VALUES
 ON CONFLICT (notification_channel_code) DO NOTHING;
 
 
-
-INSERT INTO notification_templates (event_type, subject_template, body_template, body_template_key, storage_mode)
+INSERT INTO notification_templates
+(event_type, subject_template, body_template, body_template_key, storage_mode)
 VALUES
-('SERVICE_DOWN','Service Down - {{service_name}}','<p>Service {{service_name}} is down.</p>','emails/service_down.html','HYBRID'),
-('SERVICE_RECOVERED','Service Recovered - {{service_name}}','<p>Service {{service_name}} has recovered.</p>','emails/service_recovered.html','HYBRID'),
-('SSL_EXPIRED','SSL Expiry Warning:  - {{domain}}','<p>Service {{service_name}} has recovered.</p>','emails/ssl_expiry.html','HYBRID'),
-('USER_CREATED','User Registration','<p>Service {{service_name}} has recovered.</p>','emails/welcome_email.html','HYBRID'),
-('RESET_PASSWORD','Reset your password for - {{brand_name}}','<p>Service {{service_name}} has recovered.</p>','emails/reset_password.html','HYBRID')
-ON CONFLICT DO NOTHING;
 
+(
+  'SERVICE_DOWN',
+  'Service Down Alert',
+  '<b>Service Down Alert</b>
+<b>{{service_name}}</b>
+
+<b>Immediate Attention Required</b>
+
+The monitored service <b>{{service_name}}</b> is currently <b>DOWN</b>.
+
+<b>Time:</b> {{checked_at}}
+<b>HTTP Code:</b> {{http_code}}
+<b>Response Time:</b> {{response_time_ms}} ms
+
+{{#error_message}}
+<b>Error:</b> {{error_message}}
+{{/error_message}}
+
+Please investigate immediately.
+
+<a href="{{dashboard_url}}">Open Dashboard</a>',
+  'emails/service_down.html',
+  'HYBRID'
+),
+
+(
+  'SERVICE_RECOVERED',
+  'Service Recovered',
+  'The monitored service <b>{{service_name}}</b> has <b>RECOVERED</b>.
+
+<b>Checked At:</b> {{checked_at}}
+<b>Downtime:</b> {{downtime_seconds}} seconds
+<b>HTTP Code:</b> {{http_code}}
+<b>Response Time:</b> {{response_time_ms}} ms
+
+{{#error_message}}
+<b>Error:</b> {{error_message}}
+{{/error_message}}
+
+<a href="{{dashboard_url}}">View Dashboard</a>
+
+SkyPulse Monitoring System
+123 Innovation Drive, Suite 400',
+  'emails/service_recovered.html',
+  'HYBRID'
+),
+
+(
+  'SSL_EXPIRED',
+  'SSL Certificate Expiry Alert',
+  'SSL certificate for <b>{{domain}}</b> (Service: <b>{{service_name}}</b>) is approaching expiry.
+
+<b>Issuer:</b> {{issuer}}
+<b>Checked at:</b> {{checked_at}}
+<b>Days Remaining:</b> {{days_remaining}} days
+<b>Threshold:</b> {{threshold}}%
+
+Please renew the certificate to avoid service disruption.
+
+<a href="{{renew_url}}">Renew SSL Now</a>',
+  'emails/ssl_expiry.html',
+  'HYBRID'
+),
+
+(
+  'USER_CREATED',
+  'User Registration',
+  '',
+  'emails/welcome_email.html',
+  'HYBRID'
+),
+
+(
+  'RESET_PASSWORD',
+  'Reset your password',
+  '',
+  'emails/reset_password.html',
+  'HYBRID'
+)
+
+ON CONFLICT DO NOTHING;
 
 
 -- SYSTEM SETTINGS

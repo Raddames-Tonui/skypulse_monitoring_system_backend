@@ -2,8 +2,6 @@ package org.skypulse.notifications.telegram;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.mustachejava.DefaultMustacheFactory;
-import com.github.mustachejava.Mustache;
 import org.skypulse.config.utils.XmlConfiguration;
 import org.skypulse.notifications.NotificationSender;
 import org.slf4j.Logger;
@@ -16,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * Sends notifications via Telegram bot.
+ * Sends notifications via Telegram bot, sanitizing messages for supported HTML tags.
  */
 public class TelegramSender implements NotificationSender {
 
@@ -35,6 +33,8 @@ public class TelegramSender implements NotificationSender {
         if (!"TELEGRAM".equalsIgnoreCase(channelCode) || !config.enabled) return false;
 
         String combinedMessage = combineSubjectAndBody(subject, message);
+        combinedMessage = sanitizeForTelegram(combinedMessage);
+
         int attempts = 0;
         boolean sent = false;
 
@@ -59,6 +59,27 @@ public class TelegramSender implements NotificationSender {
         if (subject != null && !subject.isBlank()) sb.append(subject).append("\n\n");
         sb.append(body != null ? body : "");
         return sb.toString();
+    }
+
+    /**
+     * Sanitizes HTML for Telegram:
+     * - Removes unsupported tags: html, head, body, style, table, tr, td, p, div, img, hr, br
+     * - Keeps only Telegram-supported tags: b, i, u, a, code, pre
+     * - Converts block elements to line breaks
+     */
+    private String sanitizeForTelegram(String html) {
+        if (html == null) return "";
+
+        // Remove unsupported tags
+        String sanitized = html.replaceAll("(?i)</?(html|head|body|style|table|tr|td|p|div|img|hr|br)[^>]*>", "");
+
+        // Replace HTML entities
+        sanitized = sanitized.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">");
+
+        // Normalize whitespace and line breaks
+        sanitized = sanitized.replaceAll("\\s*\\n\\s*", "\n").trim();
+
+        return sanitized;
     }
 
     private boolean sendMessage(String chatId, String text) throws Exception {

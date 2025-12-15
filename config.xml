@@ -17,7 +17,7 @@
 
     <!-- PostgresSQL Data Source Configuration -->
     <dataSource>
-        <driverClassName mode="TEXT">org.postgresql.Driver</driverClassName>
+        <driverClassName>org.postgresql.Driver</driverClassName>
 
         <jdbcUrl mode="TEXT">jdbc:postgresql://localhost:5432/skypulse_monitoring_system_database</jdbcUrl>
 
@@ -41,7 +41,7 @@
 
     <!-- Logging -->
     <logging>
-        <level mode="TEXT">INFO</level>
+        <level>INFO</level>
         <logFile mode="TEXT">logs/skypulse-db.log</logFile>
     </logging>
 
@@ -58,7 +58,7 @@
             <useTLS mode="TEXT">true</useTLS>
             <username mode="TEXT">raddamestonui48@gmail.com</username>
             <password mode="TEXT">pgqp kjmx zcml jdmv</password>
-            <fromName mode="TEXT">SkyPulse Monitor</fromName>
+            <fromName>SkyPulse Monitor</fromName>
             <fromAddress mode="TEXT">raddamestonui48@gmail.com</fromAddress>
             <connectionTimeout mode="TEXT">10000</connectionTimeout>
             <retryAttempts mode="TEXT">3</retryAttempts>

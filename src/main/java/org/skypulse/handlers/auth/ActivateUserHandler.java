@@ -21,6 +21,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/***
+ * Activates user using token, deletes token, and creates session for the user
+ * */
 public class ActivateUserHandler implements HttpHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(ActivateUserHandler.class);
@@ -56,43 +59,45 @@ public class ActivateUserHandler implements HttpHandler {
             conn.setAutoCommit(false);
 
             String sql = """
-                    WITH token_check AS (
-                        SELECT token_id, user_id, expires_at, is_used
-                        FROM user_password_tokens
-                        WHERE token = ? FOR UPDATE
-                    ),
-                    updated_user AS (
-                        UPDATE users u
-                        SET password_hash = ?, is_active = TRUE, date_modified = NOW()
-                        FROM token_check t
-                        WHERE u.user_id = t.user_id
-                          AND t.is_used = FALSE
-                          AND t.expires_at > NOW()
-                        RETURNING u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, u.role_id
-                    ),
-                    mark_token AS (
-                        UPDATE user_password_tokens
-                        SET is_used = TRUE
-                        FROM updated_user u
-                        WHERE user_password_tokens.user_id = u.user_id
-                        RETURNING 1
-                    ),
-                    user_role AS (
-                        SELECT r.role_name
-                        FROM roles r
-                        JOIN updated_user u ON u.role_id = r.role_id
-                    )
-                    SELECT u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, ur.role_name
-                    FROM updated_user u
-                    CROSS JOIN user_role ur
-                    """;
+                        WITH token_check AS (
+                            SELECT token_id, user_id, expires_at
+                            FROM user_password_tokens
+                            WHERE token = ? FOR UPDATE
+                        ),
+                            updated_user AS (
+                                UPDATE users u
+                                SET password_hash = ?, is_active = true, date_modified = now()
+                                FROM token_check t 
+                                WHERE u.user_id = t.user_id
+                                       AND t.expires_at > now()
+                                RETURNING u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, u.role_id                                       
+                            ),
+                            delete_token AS (
+                                DELETE FROM user_password_tokens t
+                                USING updated_user u
+                                WHERE t.user_id = u.user_id
+                                       AND t.token = ?
+                                       AND t.expires_at > now()
+                                RETURNING 1
+                            ),
+                            user_role AS (
+                                SELECT r.role_name
+                                FROM roles r
+                                JOIN updated_user u ON u.role_id = r.role_id
+                            )
+                            SELECT u.user_id, u.uuid, u.first_name, u.last_name, u.user_email, ur.role_name
+                            FROM updated_user u
+                            CROSS JOIN user_role ur
+                        """;
 
             long userId;
             String userUuid, firstName, lastName, email, roleName;
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, token);
+                ps.setString(1, token);  // for token_check
                 ps.setString(2, PasswordUtil.hashPassword(password));
+                ps.setString(3, token);  // for delete_token
+
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         conn.rollback();
