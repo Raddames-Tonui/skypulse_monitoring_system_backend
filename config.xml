@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<configuration>
+<?xml version="1.0" encoding="UTF-8"?><configuration>
     <!--  Undertow Server Configuration -->
     <server>
         <host mode="TEXT">localhost</host>
@@ -34,7 +33,7 @@
     <!--  pool size ≈ (CPU cores × 2) + effective DB parallelism -->
     <connectionPool>
         <maximumPoolSize mode="TEXT">10</maximumPoolSize>
-        <minimumIdle mode="TEXT" >3</minimumIdle>
+        <minimumIdle mode="TEXT">3</minimumIdle>
         <idleTimeout mode="TEXT">60000</idleTimeout>
         <connectionTimeout mode="TEXT">30000</connectionTimeout>
         <maxLifetime mode="TEXT">1800000</maxLifetime>
@@ -42,8 +41,8 @@
 
     <!-- Logging -->
     <logging>
-        <level  mode="TEXT">INFO</level>
-        <logFile  mode="TEXT">logs/skypulse-db.log</logFile>
+        <level mode="TEXT">INFO</level>
+        <logFile mode="TEXT">logs/skypulse-db.log</logFile>
     </logging>
 
     <!-- Notification Channels    -->

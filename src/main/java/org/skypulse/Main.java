@@ -1,5 +1,6 @@
 package org.skypulse;
 
+import org.skypulse.config.ConfigEncryptor;
 import org.skypulse.config.ConfigLoader;
 import org.skypulse.config.database.DBTaskScheduler;
 import org.skypulse.config.database.DatabaseManager;
@@ -34,7 +35,7 @@ public class Main {
 
             String masterKey = KeyProvider.getEncryptionKey();
 
-//
+
 //            try {
 //                boolean encryptedNow = ConfigEncryptor.encryptIfNeeded(configPath, masterKey);
 //

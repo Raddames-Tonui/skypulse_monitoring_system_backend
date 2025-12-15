@@ -156,7 +156,7 @@ public class CreateNewUser implements HttpHandler {
     private void insertPrimaryContact(Connection conn, long userId, String email) throws Exception {
         String sql = """
                 INSERT INTO user_contacts (user_id, type, value, verified, is_primary)
-                VALUES (?, 'email', ?, false, true)
+                VALUES (?, 'EMAIL', ?, false, true)
                 """;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, userId);
@@ -189,7 +189,7 @@ public class CreateNewUser implements HttpHandler {
                 "firstName", firstName,
                 "lastName", lastName,
                 "passwordResetLink", oneTimeLink,
-                    "message", "UWelcome! Your account has been created. Click the button below to set your password."
+                    "message", "Welcome! Your account has been created. Click the button below to set your password."
         );
         String payloadJson = JsonUtil.mapper().writeValueAsString(eventPayload);
 
