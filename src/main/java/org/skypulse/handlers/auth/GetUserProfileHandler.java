@@ -26,7 +26,9 @@ public class GetUserProfileHandler implements HttpHandler {
 
         Map<String, Object> data = new HashMap<>();
         data.put("uuid", ctx.uuid().toString());
-        data.put("full_name", ctx.firstName() + " " + ctx.lastName());
+        data.put("id", ctx.userId());
+        data.put("first_name", ctx.firstName());
+        data.put("last_name", ctx.lastName());
         data.put("email", ctx.email());
         data.put("role_name", ctx.roleName());
         data.put("company_name", ctx.companyName());
