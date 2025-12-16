@@ -51,6 +51,15 @@ public class HttpRequestUtil {
         }
     }
 
+    // Read nested Maps eg Map<String, Map<String, Object>> to JSON string
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> getMap(Map<String, Object> body, String field) {
+        Object value = body.get(field);
+        if(value instanceof Map) {
+            return (Map<String, Object>) value;
+        }
+        return null;
+    }
 /**
  *  HTTP request is handled on a thread. There are two main kinds of threads:
  *      - IO threads – handle reading the incoming request and writing the response.

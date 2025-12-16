@@ -3,6 +3,7 @@ package org.skypulse.handlers.auth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.JdbcUtils;
 import org.skypulse.utils.JsonUtil;
 import org.skypulse.utils.ResponseUtil;
@@ -35,11 +36,11 @@ public class ActivateUserHandler implements HttpHandler {
         try {
             input = mapper.readValue(exchange.getInputStream(), Map.class);
             if (input == null) {
-                ResponseUtil.sendError(exchange, 400, "Invalid JSON payload");
+                ResponseUtil.sendError(exchange,  StatusCodes.BAD_REQUEST, "Invalid JSON payload");
                 return;
             }
         } catch (Exception e) {
-            ResponseUtil.sendError(exchange, 400, "Invalid request body");
+            ResponseUtil.sendError(exchange,  StatusCodes.BAD_REQUEST, "Invalid request body");
             return;
         }
 
@@ -47,11 +48,11 @@ public class ActivateUserHandler implements HttpHandler {
         String password = (input.get("password") instanceof String) ? (String) input.get("password") : null;
 
         if (token == null || token.isBlank() || password == null || password.isBlank()) {
-            ResponseUtil.sendError(exchange, 400, "Token and password are required");
+            ResponseUtil.sendError(exchange,  StatusCodes.BAD_REQUEST, "Token and password are required");
             return;
         }
         if (password.length() < 6) {
-            ResponseUtil.sendError(exchange, 400, "Password must be at least 6 characters");
+            ResponseUtil.sendError(exchange,  StatusCodes.BAD_REQUEST, "Password must be at least 6 characters");
             return;
         }
 
@@ -101,7 +102,7 @@ public class ActivateUserHandler implements HttpHandler {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         conn.rollback();
-                        ResponseUtil.sendError(exchange, 400, "Invalid or expired token");
+                        ResponseUtil.sendError(exchange,  StatusCodes.BAD_REQUEST, "Invalid or expired token");
                         return;
                     }
                     userId = rs.getLong("user_id");
@@ -132,7 +133,7 @@ public class ActivateUserHandler implements HttpHandler {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
                         conn.rollback();
-                        ResponseUtil.sendError(exchange, 500, "Failed to create session");
+                        ResponseUtil.sendError(exchange,  StatusCodes.INTERNAL_SERVER_ERROR, "Failed to create session");
                         return;
                     }
                     jwtId = (UUID) rs.getObject("jwt_id");
@@ -157,7 +158,7 @@ public class ActivateUserHandler implements HttpHandler {
 
         } catch (Exception e) {
             logger.error("Activation failed", e);
-            ResponseUtil.sendError(exchange, 500, "Activation failed");
+            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, "Activation failed");
         }
     }
 }

@@ -78,7 +78,7 @@ FOR EACH ROW EXECUTE FUNCTION touch_date_modified();
 CREATE TABLE user_preferences (
     user_preference_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT      NOT NULL UNIQUE,
-    alert_channel      VARCHAR(30) DEFAULT 'EMAIL', -- 'EMAIL', 'TELEGRAM', 'SMS'
+    alert_channel VARCHAR(10) DEFAULT 'EMAIL' CHECK (alert_channel IN ('EMAIL', 'SMS', 'TELEGRAM')),
     receive_weekly_reports BOOLEAN DEFAULT TRUE,
     language           VARCHAR(10) DEFAULT 'en',
     timezone           VARCHAR(100) DEFAULT 'UTC',
@@ -94,7 +94,7 @@ CREATE TABLE user_preferences (
 CREATE TABLE user_contacts (
     user_contacts_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id          BIGINT,
-    type             VARCHAR(20) CHECK (type IN ('EMAIL', 'PHONE', 'SMS', 'TELEGRAM')),
+    type             VARCHAR(10) CHECK (type IN ('EMAIL',  'SMS', 'TELEGRAM')),
     value            VARCHAR(150) NOT NULL,
     verified         BOOLEAN DEFAULT FALSE,
     is_primary       BOOLEAN DEFAULT FALSE,

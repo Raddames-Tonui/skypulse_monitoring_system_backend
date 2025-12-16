@@ -9,6 +9,12 @@ import java.util.stream.Collectors;
 
 /**
  * Utility class to handle database operations with pagination, filtering, sorting, and JSONB support.
+ * Pagination helpers (calcOffset, parseIntParam)
+ * Filtering helpers (FilterRule, buildFiltersFromRules)
+ * Sorting helpers (SortRule, buildOrderBy)
+ * Query helper that executes SQL and returns List<Map<String,Object>>
+ * Automatic JSONB parsing from Postgres
+ * URL/parameter parsing
  */
 public final class DatabaseUtils {
 

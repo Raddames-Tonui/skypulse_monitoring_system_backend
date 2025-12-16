@@ -42,6 +42,7 @@ public class Routes {
                 .post("/login", open(new UserLoginHandler(cfg)))
                 .post("/register", open(new UserSignupHandler()))
                 .get("/profile", secure(new GetUserProfileHandler(), accessToken))
+                .put("/profile", secure(new UpdateUserProfile(), accessToken))
                 .post("/logout", secure(new LogoutHandler(), accessToken))
                 .post("/activate", open(new ActivateUserHandler()))
                 .post("/request/reset-password", open(new RequestResetPasswordHandler()))
