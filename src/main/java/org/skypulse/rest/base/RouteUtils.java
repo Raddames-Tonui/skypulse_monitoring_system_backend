@@ -7,16 +7,42 @@ import org.skypulse.rest.auth.HandlerFactory;
 
 public class RouteUtils {
 
-    // Open routes, no auth or role checks
-    public static HttpHandler open(HttpHandler handler) {
+    /**
+     * Route that does not require authentication.
+     * Anyone can access this route.
+     */
+    public static HttpHandler publicRoute(HttpHandler handler) {
         return new Dispatcher(
                 new BlockingHandler(handler)
         );
     }
 
-    // Secured routes with JWT and role checks
-    public static HttpHandler secure(HttpHandler handler, long accessTokenTtl) {
+    /**
+     * Route that requires the user to be authenticated (JWT validated)
+     * and optionally role checks applied.
+     */
+    public static HttpHandler userSessionRequired(HttpHandler handler, long accessTokenTtl) {
         HttpHandler wrappedWithRoles = HandlerFactory.build(handler);
+
+        return new Dispatcher(
+                new BlockingHandler(
+                        new AuthMiddleware(wrappedWithRoles, accessTokenTtl)
+                )
+        );
+    }
+
+    public static HttpHandler secureSSERoute(HttpHandler handler, long accessTokenTtl) {
+        HttpHandler wrappedWithRoles = HandlerFactory.build(handler);
+
+        return new AuthMiddleware(wrappedWithRoles, accessTokenTtl);
+    }
+
+    /**
+     * Route that requires the user to be authenticated and
+     * must have specific roles.
+     */
+    public static HttpHandler roleProtectedRoute(HttpHandler handler, long accessTokenTtl) {
+        HttpHandler wrappedWithRoles = HandlerFactory.build(handler); // applies role checks
 
         return new Dispatcher(
                 new BlockingHandler(

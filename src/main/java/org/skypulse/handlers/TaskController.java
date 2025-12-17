@@ -21,10 +21,6 @@ public class TaskController implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
 
         try {
             taskScheduler.reload();

@@ -3,7 +3,6 @@ package org.skypulse.handlers.auth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.HttpString;
 import io.undertow.util.StatusCodes;
 import org.skypulse.config.database.DatabaseManager;
 import org.skypulse.config.database.dtos.UserLoginRequest;
@@ -29,8 +28,8 @@ public class UserLoginHandler implements HttpHandler {
     private final long REFRESH_TOKEN_TTL;
 
     public UserLoginHandler(XmlConfiguration cfg) {
-        long accessToken = 15 * 60;        // default 15 min
-        long refreshToken = 30L * 24 * 3600; // default 30 days
+        long accessToken = 15 * 60;           // default 15 min
+        long refreshToken = 30L * 24 * 3600;  // default 30 days
 
         try { accessToken = Long.parseLong(cfg.jwtConfig.accessToken) * 60; } catch (Exception ignored) {}
         try { refreshToken = Long.parseLong(cfg.jwtConfig.refreshToken) * 24 * 3600; } catch (Exception ignored) {}
@@ -41,6 +40,8 @@ public class UserLoginHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
+
+        // --- 1. Parse request ---
         UserLoginRequest req;
         try {
             req = mapper.readValue(exchange.getInputStream(), UserLoginRequest.class);
@@ -60,7 +61,7 @@ public class UserLoginHandler implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // 1. Fetch user
+            // --- 2. Fetch user from DB ---
             String selectUser = """
                 SELECT user_id, uuid, password_hash, first_name, last_name, user_email, is_deleted, role_id
                 FROM users
@@ -82,12 +83,12 @@ public class UserLoginHandler implements HttpHandler {
                     }
 
                     userId = rs.getLong("user_id");
-                    userUuid = UUID.fromString(rs.getObject("uuid").toString());
+                    userUuid = UUID.fromString(rs.getString("uuid"));
                     passwordHash = rs.getString("password_hash");
                     email = rs.getString("user_email");
                     firstName = rs.getString("first_name");
                     lastName = rs.getString("last_name");
-                    roleId = rs.getObject("role_id") == null ? null : rs.getInt("role_id");
+                    roleId = rs.getObject("role_id") != null ? rs.getInt("role_id") : null;
 
                     if (rs.getBoolean("is_deleted")) {
                         logLoginFailure(conn, email, ipAddress, userAgent, "Account deleted");
@@ -97,14 +98,14 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // 2. Verify password
+            // --- 3. Verify password ---
             if (!PasswordUtil.verifyPassword(req.password, passwordHash)) {
                 logLoginFailure(conn, email, ipAddress, userAgent, "Invalid credentials");
                 ResponseUtil.sendError(exchange, StatusCodes.UNAUTHORIZED, "Invalid credentials");
                 return;
             }
 
-            // 3. Get role name
+            // --- 4. Get role name ---
             String roleName = "";
             if (roleId != null) {
                 try (PreparedStatement ps = conn.prepareStatement("SELECT role_name FROM roles WHERE role_id = ?")) {
@@ -117,16 +118,16 @@ public class UserLoginHandler implements HttpHandler {
 
             Instant now = Instant.now();
 
-            // 4. Generate refresh token
+            // --- 5. Generate refresh token ---
             String refreshToken = TokenUtil.generateToken();
             String refreshHash = TokenUtil.hashToken(refreshToken);
 
-            // 5. Insert auth session
+            // --- 6. Insert auth session ---
             String insertAuth = """
                 INSERT INTO auth_sessions
                 (user_id, refresh_token_hash, jwt_id, issued_at, expires_at, last_used_at, login_time, ip_address, user_agent, device_name, session_status)
                 VALUES (?, ?, uuid_generate_v4(), ?, ?, ?, ?, ?, ?, ?, 'active')
-                RETURNING jwt_id, auth_session_id
+                RETURNING jwt_id
             """;
 
             UUID jwtId;
@@ -151,17 +152,12 @@ public class UserLoginHandler implements HttpHandler {
                 }
             }
 
-            // 6. Set refresh token cookie
-            boolean isSecure = exchange.getRequestHeaders().getFirst("HOST").startsWith("localhost") ? false : true;
-            exchange.getResponseHeaders().add(HttpString.tryFromString("Set-Cookie"),
-                    String.format("refreshToken=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax",
-                            refreshToken, (int) REFRESH_TOKEN_TTL)
-            );
-
-            // 7. Set access token cookie using CookieUtil
+            // --- 7. Set cookies ---
+            boolean isSecure = !exchange.getRequestHeaders().getFirst("HOST").startsWith("localhost");
+            CookieUtil.setRefreshTokenCookie(exchange, refreshToken, REFRESH_TOKEN_TTL, isSecure);
             CookieUtil.setAccessTokenCookie(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL, isSecure);
 
-            // 8. Send response
+            // --- 8. Prepare user profile ---
             Map<String, Object> profile = new HashMap<>();
             profile.put("uuid", userUuid);
             profile.put("full_name", firstName + " " + lastName);

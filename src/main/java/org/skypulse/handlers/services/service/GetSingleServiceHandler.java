@@ -21,8 +21,6 @@ public class GetSingleServiceHandler implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange ex) throws Exception {
 
-        if (HttpRequestUtil.dispatchIfIoThread(ex, this)) return;
-
         String uuid = Optional.ofNullable(ex.getQueryParameters().get("uuid"))
                 .map(Deque::peekFirst)
                 .orElse(null);

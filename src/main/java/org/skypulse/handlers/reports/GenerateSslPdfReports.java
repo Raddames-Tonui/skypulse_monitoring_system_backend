@@ -30,11 +30,6 @@ public class GenerateSslPdfReports implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange exchange) {
 
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
-
         String serviceIdParam = DatabaseUtils.getParam(exchange.getQueryParameters(), "service_id");
         String filterPeriod = DatabaseUtils.getParam(exchange.getQueryParameters(), "period");
         String statusFilter = DatabaseUtils.getParam(exchange.getQueryParameters(), "status");

@@ -43,11 +43,6 @@ public class GetSingleContactGroupHandler implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
 
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
-
         Deque<String> uuidParam = exchange.getQueryParameters().get("uuid");
         if (uuidParam == null || uuidParam.isEmpty()) {
             ResponseUtil.sendError(exchange, StatusCodes.BAD_REQUEST, "Missing uuid parameter");

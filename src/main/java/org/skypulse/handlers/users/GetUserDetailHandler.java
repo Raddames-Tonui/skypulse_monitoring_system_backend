@@ -11,10 +11,7 @@ public class GetUserDetailHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
+
 
         Map<String, Deque<String>> params = exchange.getQueryParameters();
         String uuidParam = DatabaseUtils.getParam(params, "uuid");

@@ -60,23 +60,5 @@ public class HttpRequestUtil {
         }
         return null;
     }
-/**
- *  HTTP request is handled on a thread. There are two main kinds of threads:
- *      - IO threads – handle reading the incoming request and writing the response.
- *      - Worker threads – handle the actual heavy work (like querying a database).
 
- *      Check if the exchange is running on an IO thread.
- *      If yes, dispatches the handler to a worker thread to safely perform blocking operations.
- *      Prevents blocking the IO thread which handles incoming requests.
- *      Usage:
- *           if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
-
- * */
-    public static boolean dispatchIfIoThread(HttpServerExchange exchange, HttpHandler handler) {
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(handler); // moves execution to a worker thread
-            return true;
-        }
-        return false;                  // already on worker thread, safe to continue
-    }
 }

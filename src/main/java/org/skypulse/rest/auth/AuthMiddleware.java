@@ -18,14 +18,6 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * AuthMiddleware:
- * - Reads access & refresh cookies
- * - Validates session row in DB
- * - Auto-refreshes access token using refresh token if possible
- * - Attaches UserContext to the exchange
- *
- */
 public class AuthMiddleware implements HttpHandler {
 
     private static final Logger log = LoggerFactory.getLogger(AuthMiddleware.class);
@@ -55,20 +47,15 @@ public class AuthMiddleware implements HttpHandler {
 
         try (Connection conn = Objects.requireNonNull(DatabaseManager.getDataSource()).getConnection()) {
 
-            // Read JWT ID from access token
             UUID accessJti = null;
             if (accessToken != null && !accessToken.isBlank()) {
-                try {
-                    String jti = JwtUtil.getJwtId(accessToken);
-                    if (jti != null && !jti.isBlank()) accessJti = UUID.fromString(jti);
-                } catch (Exception ex) {
-                    log.debug("Failed to read jti from access token: {}", ex.getMessage());
-                }
+                try { accessJti = UUID.fromString(JwtUtil.getJwtId(accessToken)); }
+                catch (Exception ignored) {}
             }
 
             String refreshHash = refreshToken != null ? TokenUtil.hashToken(refreshToken) : null;
 
-            // Validate session in DB
+            // Fetch session
             String sql = """
                 SELECT auth_session_id, user_id, jwt_id, refresh_token_hash,
                        session_status, is_revoked, expires_at
@@ -86,22 +73,20 @@ public class AuthMiddleware implements HttpHandler {
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setObject(1, accessJti, Types.OTHER);
                 ps.setString(2, refreshHash);
-
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         boolean revoked = rs.getBoolean("is_revoked");
                         String status = rs.getString("session_status");
                         Timestamp expiresAt = rs.getTimestamp("expires_at");
 
-                        if (!revoked && "active".equalsIgnoreCase(status)
-                                && expiresAt != null && expiresAt.toInstant().isAfter(Instant.now())) {
+                        if (!revoked && "active".equalsIgnoreCase(status) &&
+                                expiresAt.toInstant().isAfter(Instant.now())) {
 
                             sessionValid = true;
                             userId = rs.getLong("user_id");
-                            Object jwtObj = rs.getObject("jwt_id");
-                            if (jwtObj != null) jwtId = (UUID) jwtObj;
-                            String dbRefreshHash = rs.getString("refresh_token_hash");
-                            matchedViaRefresh = refreshHash != null && refreshHash.equals(dbRefreshHash);
+                            jwtId = (UUID) rs.getObject("jwt_id");
+                            matchedViaRefresh = refreshHash != null &&
+                                    refreshHash.equals(rs.getString("refresh_token_hash"));
                         }
                     }
                 }
@@ -113,6 +98,7 @@ public class AuthMiddleware implements HttpHandler {
                 return;
             }
 
+            // Fetch user profile
             String userSql = """
                 SELECT u.uuid, u.first_name, u.last_name, u.user_email,
                        u.role_id, r.role_name, c.company_name
@@ -123,20 +109,14 @@ public class AuthMiddleware implements HttpHandler {
             """;
 
             UUID userUuid = null;
-            String firstName = null;
-            String lastName = null;
-            String email = null;
+            String firstName = null, lastName = null, email = null, roleName = "", companyName = null;
             Integer roleId = null;
-            String roleName = "";
-            String companyName = null;
 
             try (PreparedStatement ps = conn.prepareStatement(userSql)) {
                 ps.setLong(1, userId);
-
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        String uuidStr = rs.getString("uuid");
-                        if (uuidStr != null) userUuid = UUID.fromString(uuidStr);
+                        userUuid = UUID.fromString(rs.getString("uuid"));
                         firstName = rs.getString("first_name");
                         lastName = rs.getString("last_name");
                         email = rs.getString("user_email");
@@ -147,33 +127,23 @@ public class AuthMiddleware implements HttpHandler {
                 }
             }
 
-            boolean accessExpired = (accessToken == null) || JwtUtil.isExpired(accessToken);
+            boolean accessExpired = accessToken == null || JwtUtil.isExpired(accessToken);
 
-            // Refresh access token if expired and refresh token matches
-            if (accessExpired && refreshToken != null && matchedViaRefresh) {
-                if (userUuid != null) {
-                    boolean isSecure = !exchange.getRequestHeaders().getFirst("HOST").startsWith("localhost");
-                    CookieUtil.setAccessTokenCookie(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL_SECONDS, isSecure);
-                    log.debug("Issued refreshed access token cookie for user {}", userId);
-                } else {
-                    log.warn("Matched refresh token but user UUID is null for session jwtId={}", jwtId);
-                }
+            if (accessExpired && refreshToken != null && matchedViaRefresh && userUuid != null) {
+                boolean isSecure = !exchange.getRequestHeaders().getFirst("HOST").startsWith("localhost");
+                CookieUtil.setAccessTokenCookie(exchange, jwtId, userUuid, email, roleName, ACCESS_TOKEN_TTL_SECONDS, isSecure);
+                log.debug("Refreshed access token for user {}", userId);
             }
 
             // Attach UserContext
-            UserContext ctx = new UserContext(
-                    userId, userUuid, firstName, lastName,
-                    email, roleId, roleName, companyName
-            );
-
-            exchange.putAttachment(UserContext.ATTACHMENT_KEY, ctx);
+            exchange.putAttachment(UserContext.ATTACHMENT_KEY,
+                    new UserContext(userId, userUuid, firstName, lastName, email, roleId, roleName, companyName));
 
             next.handleRequest(exchange);
 
         } catch (Exception e) {
-            log.error("AuthMiddleware failed: {}", e.getMessage(), e);
-            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR,
-                    "Internal Server Error");
+            log.error("AuthMiddleware failed", e);
+            ResponseUtil.sendError(exchange, StatusCodes.INTERNAL_SERVER_ERROR, "Internal Server Error");
         }
     }
 }

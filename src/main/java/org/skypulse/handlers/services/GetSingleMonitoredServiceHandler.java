@@ -16,7 +16,6 @@ public class GetSingleMonitoredServiceHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
 
         Deque<String> uuidParam = exchange.getQueryParameters().get("uuid");
         if (uuidParam == null || uuidParam.isEmpty()) {

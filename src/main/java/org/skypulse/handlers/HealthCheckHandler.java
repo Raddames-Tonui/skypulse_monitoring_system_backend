@@ -28,10 +28,6 @@ public class HealthCheckHandler implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("app", "SkyPulse REST API");

@@ -2,7 +2,7 @@
     <!--  Undertow Server Configuration -->
     <server>
         <host mode="TEXT">localhost</host>
-        <port mode="TEXT">8000</port>
+        <port mode="TEXT">8002</port>
         <ioThreads mode="TEXT">10</ioThreads>
         <workerThreads mode="TEXT">100</workerThreads>
         <basePath mode="TEXT">/api/rest</basePath>

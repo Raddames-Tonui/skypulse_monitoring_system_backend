@@ -32,11 +32,6 @@ public class GenerateUptimePdfReports implements HttpHandler {
     @Override
     public void handleRequest(HttpServerExchange exchange) {
 
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
-        }
-
         String filterPeriod = DatabaseUtils.getParam(exchange.getQueryParameters(), "period");
         if (filterPeriod == null || filterPeriod.isBlank()) filterPeriod = "7";
 

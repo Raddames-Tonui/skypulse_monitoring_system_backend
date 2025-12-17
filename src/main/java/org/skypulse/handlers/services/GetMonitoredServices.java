@@ -39,7 +39,6 @@ public class GetMonitoredServices implements HttpHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (HttpRequestUtil.dispatchIfIoThread(exchange, this)) return;
 
 
         Map<String, Deque<String>> params = exchange.getQueryParameters();
